@@ -1,0 +1,88 @@
+:root {
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #1f2937;
+  background:
+    radial-gradient(circle at top left, rgba(173, 188, 214, 0.25), transparent 24rem),
+    linear-gradient(180deg, #f7f6f2 0%, #f1efe7 100%);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  --text: #1f2937;
+  --muted-strong: #5b6575;
+  --muted: #788190;
+  --surface: rgba(255, 255, 255, 0.78);
+  --surface-alt: #f4f1e8;
+  --border: rgba(31, 41, 55, 0.09);
+  --accent-soft: rgba(85, 107, 138, 0.28);
+  --shadow: 0 20px 40px rgba(64, 72, 87, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  height: 100%;
+  overflow: hidden;
+}
+
+body,
+input,
+button {
+  font-family: inherit;
+}
+
+button,
+input {
+  appearance: none;
+}
+
+button {
+  border: 0;
+}
+
+#root {
+  min-height: 100vh;
+  height: 100vh;
+}
+
+h1,
+h2,
+p,
+strong {
+  margin: 0;
+}
+
+h1,
+h2 {
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  color: var(--text);
+  letter-spacing: -0.04em;
+}
+
+h1 {
+  font-size: clamp(2.5rem, 4vw, 4.5rem);
+  line-height: 0.96;
+  margin-bottom: 16px;
+}
+
+h2 {
+  font-size: 1.3rem;
+  line-height: 1.1;
+}
+
+p {
+  color: var(--muted-strong);
+}
