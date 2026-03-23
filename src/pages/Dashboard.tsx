@@ -650,6 +650,7 @@ function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
           sum + getSignedAmount(transaction.amount, transaction.type),
         0,
       )
+  const currentAvailableBalance = projectedBalance(todayKey)
   const selectedDayBalance = projectedBalance(selectedDateKey)
   const totalDebt = debtPlans.reduce((sum, debt) => sum + debt.balance, 0)
   const projectedMonthEndBalance = projectedBalance(
@@ -657,7 +658,7 @@ function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
   )
   const planProjection = financePlan.targetDate
     ? projectedBalance(financePlan.targetDate)
-    : currentBalance
+    : currentAvailableBalance
   const planGap = financePlan.targetDate
     ? financePlan.targetAmount - planProjection
     : 0
@@ -2192,7 +2193,7 @@ function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
                 onClick={() => openModal('balanceEdit')}
               >
                 <span>Available balance</span>
-                <strong>{currency.format(currentBalance)}</strong>
+                <strong>{currency.format(currentAvailableBalance)}</strong>
               </button>
               <div className="summary-stat">
                 <span>Projected end of {formatMonthLabel(currentMonth)}</span>
