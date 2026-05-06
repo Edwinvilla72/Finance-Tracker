@@ -1,3 +1,29 @@
+This is a personal project I developed to keep track of my finances, understand my spending, schedule increases/deductions, and act on my personal financial goals.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
