@@ -1,7 +1,15 @@
 import { useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { isSupabaseConfigured, supabase } from '../lib/supabase'
 
-function AuthPage() {
+type AppMode = 'local' | 'supabase'
+
+type AuthPageProps = {
+  appMode: AppMode
+  onModeChange: (mode: AppMode) => void
+  supabaseUnavailable?: boolean
+}
+
+function AuthPage({ appMode, onModeChange, supabaseUnavailable = false }: AuthPageProps) {
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -12,6 +20,12 @@ function AuthPage() {
     event.preventDefault()
     setLoading(true)
     setMessage('')
+
+    if (!isSupabaseConfigured || !supabase) {
+      setLoading(false)
+      setMessage('Supabase is not configured. The app is running in local demo mode.')
+      return
+    }
 
     if (mode === 'register') {
       const { error } = await supabase.auth.signUp({
@@ -41,10 +55,35 @@ function AuthPage() {
         <p className="eyebrow">Finance tracker</p>
         <h1>{mode === 'login' ? 'Sign in' : 'Create account'}</h1>
         <p className="auth-copy">
-          {mode === 'login'
-            ? 'Use your Supabase account to access the shared finance dashboard.'
-            : 'Create an account so you and your family can use the app from separate logins.'}
+          {supabaseUnavailable
+            ? 'Supabase mode is selected, but the environment variables are missing on this machine.'
+            : mode === 'login'
+              ? 'Use your Supabase account to access the shared finance dashboard.'
+              : 'Create an account so you and your family can use the app from separate logins.'}
         </p>
+
+        <div className="mode-toggle" aria-label="App mode">
+          <button
+            type="button"
+            className={appMode === 'local' ? 'selected' : ''}
+            onClick={() => onModeChange('local')}
+          >
+            Local dev
+          </button>
+          <button
+            type="button"
+            className={appMode === 'supabase' ? 'selected' : ''}
+            onClick={() => onModeChange('supabase')}
+          >
+            Supabase
+          </button>
+        </div>
+
+        {supabaseUnavailable ? (
+          <p className="auth-message">
+            Switch to local dev mode to use browser-saved data until your `.env` is back.
+          </p>
+        ) : null}
 
         <form className="stack-form" onSubmit={handleSubmit}>
           <input

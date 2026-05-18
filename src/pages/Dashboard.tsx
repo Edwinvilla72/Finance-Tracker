@@ -1,75 +1,64 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useMemo, useState } from 'react'
+import {
+  buildCalendarOccurrences,
+  getCalendarDays,
+  getSignedAmount,
+  projectBalance,
+} from '../calculations/cashFlow'
+import {
+  getCadenceLabel,
+  estimateDebtAmortization,
+  getMonthlyAmountNeeded,
+  getPaymentCount,
+  getRecommendedPayment,
+} from '../calculations/debtPayoff'
+import { calculateEmergencyFundProgress } from '../calculations/emergencyFund'
+import { projectInvestmentGrowth } from '../calculations/investments'
+import { calculateNetWorth } from '../calculations/netWorth'
+import { estimatePaycheck } from '../calculations/paycheck'
+import { projectBalanceMonths } from '../calculations/projections'
+import { projectScenarioImpact } from '../calculations/scenarios'
 import { supabase } from '../lib/supabase'
-
-type TransactionType = 'income' | 'expense' | 'transfer' | 'debt'
-
-type ScheduledTransaction = {
-  id: number
-  title: string
-  amount: number
-  date: string
-  type: TransactionType
-  category?: string
-}
-
-type RecurringTransaction = {
-  id: number
-  title: string
-  amount: number
-  frequency: 'monthly' | 'weekly'
-  dayOfMonth?: number
-  weekdays?: number[]
-  type: Exclude<TransactionType, 'income'>
-  startDate?: string
-  endDate?: string
-}
-
-type PaycheckRule = {
-  id: number
-  title: string
-  amount: number
-  frequency: 'monthly' | 'weekly' | 'biweekly'
-  dayOfMonth?: number
-  weekday?: number
-  startDate?: string
-}
-
-type DebtPlan = {
-  id: number
-  title: string
-  balance: number
-  minimumDue: number
-  dueDate: string
-  payoffDate: string
-  payoffCadence?: 'weekly' | 'biweekly' | 'monthly'
-  payoffMode?: 'amount' | 'percent'
-  payoffValue?: number
-}
-
-type FinancePlan = {
-  targetAmount: number
-  targetDate: string
-}
-
-type PurchaseGoal = {
-  id: number
-  title: string
-  cost: number
-  targetDate: string
-  savingsCadence?: 'weekly' | 'biweekly' | 'monthly'
-}
-
-type CalendarOccurrence = {
-  id: string
-  originId: number
-  originType: 'single' | 'recurring' | 'paycheck'
-  title: string
-  amount: number
-  date: string
-  type: TransactionType
-  category?: string
-}
+import {
+  clearPersistedState,
+  DASHBOARD_STATE_TABLE,
+  getDefaultPersistedState,
+  loadPersistedState,
+  mergePersistedStates,
+  normalizePersistedState,
+  savePersistedState,
+} from '../services/dashboardStateService'
+import type {
+  CalendarOccurrence,
+  DebtPlan,
+  BenefitElection,
+  FinancePlan,
+  FinancialProfile,
+  EmergencyFundPlan,
+  InvestmentAccount,
+  NetWorthItem,
+  PaycheckRule,
+  PersistedState,
+  PurchaseGoal,
+  RecurringTransaction,
+  RetirementContribution,
+  ScenarioPlan,
+  ScheduledTransaction,
+  TransactionType,
+} from '../types/finance'
+import { currency } from '../utils/currency'
+import {
+  endOfMonth,
+  formatDateKey,
+  formatLongDate,
+  formatMonthLabel,
+  getWeekdayList,
+  parseDateKey,
+  startOfMonth,
+  weekdayLabels,
+  weekdayOptions,
+} from '../utils/dates'
 
 type ModalView =
   | 'balanceEdit'
@@ -77,290 +66,51 @@ type ModalView =
   | 'oneTime'
   | 'recurring'
   | 'paycheck'
+  | 'incomeModel'
+  | 'benefits'
+  | 'essentials'
+  | 'emergencyFund'
+  | 'investments'
+  | 'netWorth'
+  | 'scenarios'
+  | 'insights'
   | 'debt'
   | 'allDebts'
   | 'plan'
   | 'purchaseGoals'
   | null
 
-const currency = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  maximumFractionDigits: 0,
-})
+type PageView =
+  | 'dashboard'
+  | 'cashFlow'
+  | 'planning'
+  | 'scenarios'
+  | 'insights'
 
-const weekdayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-const weekdayOptions = [
-  { label: 'Sunday', value: 0 },
-  { label: 'Monday', value: 1 },
-  { label: 'Tuesday', value: 2 },
-  { label: 'Wednesday', value: 3 },
-  { label: 'Thursday', value: 4 },
-  { label: 'Friday', value: 5 },
-  { label: 'Saturday', value: 6 },
+const pageTabs: { label: string; value: PageView }[] = [
+  { label: 'Dashboard', value: 'dashboard' },
+  { label: 'Cash Flow', value: 'cashFlow' },
+  { label: 'Planning', value: 'planning' },
+  { label: 'Scenarios', value: 'scenarios' },
+  { label: 'Insights', value: 'insights' },
 ]
-const STORAGE_KEY = 'finance-tracker-dashboard'
-const DASHBOARD_STATE_TABLE = 'dashboard_states'
-
-type PersistedState = {
-  currentBalanceInput: string
-  scheduledTransactions: ScheduledTransaction[]
-  recurringTransactions: RecurringTransaction[]
-  paycheckRules: PaycheckRule[]
-  debtPlans: DebtPlan[]
-  financePlan: FinancePlan
-  purchaseGoals: PurchaseGoal[]
-}
-
-function loadPersistedState(): PersistedState | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-
-    if (!raw) {
-      return null
-    }
-
-    return JSON.parse(raw) as PersistedState
-  } catch {
-    return null
-  }
-}
-
-function getDefaultPersistedState(): PersistedState {
-  return {
-    currentBalanceInput: '',
-    scheduledTransactions: [],
-    recurringTransactions: [],
-    paycheckRules: [],
-    debtPlans: [],
-    financePlan: {
-      targetAmount: 0,
-      targetDate: '',
-    },
-    purchaseGoals: [],
-  }
-}
-
-function normalizePersistedState(value?: Partial<PersistedState> | null): PersistedState {
-  const defaults = getDefaultPersistedState()
-
-  return {
-    currentBalanceInput: value?.currentBalanceInput ?? defaults.currentBalanceInput,
-    scheduledTransactions: value?.scheduledTransactions ?? defaults.scheduledTransactions,
-    recurringTransactions: value?.recurringTransactions ?? defaults.recurringTransactions,
-    paycheckRules: value?.paycheckRules ?? defaults.paycheckRules,
-    debtPlans: value?.debtPlans ?? defaults.debtPlans,
-    financePlan: value?.financePlan ?? defaults.financePlan,
-    purchaseGoals: value?.purchaseGoals ?? defaults.purchaseGoals,
-  }
-}
-
-function mergeById<T extends { id: number }>(remote: T[], local: T[]) {
-  const merged = new Map<number, T>()
-
-  for (const item of remote) {
-    merged.set(item.id, item)
-  }
-
-  for (const item of local) {
-    merged.set(item.id, item)
-  }
-
-  return Array.from(merged.values())
-}
-
-function mergePersistedStates(
-  remote?: Partial<PersistedState> | null,
-  local?: Partial<PersistedState> | null,
-): PersistedState {
-  const remoteState = normalizePersistedState(remote)
-  const localState = normalizePersistedState(local)
-
-  return {
-    currentBalanceInput:
-      localState.currentBalanceInput || remoteState.currentBalanceInput,
-    scheduledTransactions: mergeById(
-      remoteState.scheduledTransactions,
-      localState.scheduledTransactions,
-    ),
-    recurringTransactions: mergeById(
-      remoteState.recurringTransactions,
-      localState.recurringTransactions,
-    ),
-    paycheckRules: mergeById(remoteState.paycheckRules, localState.paycheckRules),
-    debtPlans: mergeById(remoteState.debtPlans, localState.debtPlans),
-    financePlan:
-      localState.financePlan.targetDate || localState.financePlan.targetAmount
-        ? localState.financePlan
-        : remoteState.financePlan,
-    purchaseGoals: mergeById(remoteState.purchaseGoals, localState.purchaseGoals),
-  }
-}
-
-function clearPersistedState() {
-  try {
-    localStorage.removeItem(STORAGE_KEY)
-  } catch {
-    return
-  }
-}
-
-function startOfMonth(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), 1)
-}
-
-function parseDateKey(value: string) {
-  const [year, month, day] = value.split('-').map(Number)
-  return new Date(year, month - 1, day)
-}
-
-function formatDateKey(date: Date) {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-function formatLongDate(dateKey: string) {
-  return parseDateKey(dateKey).toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  })
-}
-
-function formatMonthLabel(date: Date) {
-  return date.toLocaleDateString('en-US', {
-    month: 'long',
-    year: 'numeric',
-  })
-}
-
-function endOfMonth(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth() + 1, 0)
-}
-
-function clampDayOfMonth(year: number, month: number, dayOfMonth: number) {
-  return Math.min(dayOfMonth, new Date(year, month + 1, 0).getDate())
-}
-
-function getMonthsBetween(start: Date, end: Date) {
-  const months: Date[] = []
-  const cursor = new Date(start.getFullYear(), start.getMonth(), 1)
-  const limit = new Date(end.getFullYear(), end.getMonth(), 1)
-
-  while (cursor <= limit) {
-    months.push(new Date(cursor))
-    cursor.setMonth(cursor.getMonth() + 1)
-  }
-
-  return months
-}
-
-function getCalendarDays(month: Date) {
-  const first = startOfMonth(month)
-  const offset = first.getDay()
-  const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate()
-  const trailingSlots = (offset + daysInMonth) % 7 === 0 ? 0 : 7 - ((offset + daysInMonth) % 7)
-
-  return [
-    ...Array.from({ length: offset }, () => null),
-    ...Array.from({ length: daysInMonth }, (_, index) =>
-      new Date(month.getFullYear(), month.getMonth(), index + 1),
-    ),
-    ...Array.from({ length: trailingSlots }, () => null),
-  ]
-}
-
-function getSignedAmount(amount: number, type: TransactionType) {
-  return type === 'income' ? amount : -amount
-}
-
-function getMonthlyAmountNeeded(balance: number, payoffDate: string) {
-  if (!payoffDate) {
-    return balance
-  }
-
-  const today = new Date()
-  const end = parseDateKey(payoffDate)
-  const months =
-    (end.getFullYear() - today.getFullYear()) * 12 +
-    (end.getMonth() - today.getMonth()) +
-    1
-
-  return months > 0 ? balance / months : balance
-}
-
-function getCadenceLabel(cadence: 'weekly' | 'biweekly' | 'monthly') {
-  if (cadence === 'weekly') {
-    return 'weekly'
-  }
-
-  if (cadence === 'biweekly') {
-    return 'biweekly'
-  }
-
-  return 'monthly'
-}
-
-function getPaymentCount(startDate: Date, endDateKey: string, cadence: 'weekly' | 'biweekly' | 'monthly') {
-  const endDate = parseDateKey(endDateKey)
-
-  if (endDate < startDate) {
-    return 1
-  }
-
-  if (cadence === 'monthly') {
-    const months =
-      (endDate.getFullYear() - startDate.getFullYear()) * 12 +
-      (endDate.getMonth() - startDate.getMonth()) +
-      1
-
-    return Math.max(1, months)
-  }
-
-  const diffDays = Math.ceil(
-    (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
-  )
-  const interval = cadence === 'weekly' ? 7 : 14
-
-  return Math.max(1, Math.floor(diffDays / interval) + 1)
-}
-
-function getRecommendedPayment(
-  balance: number,
-  payoffDate: string,
-  cadence: 'weekly' | 'biweekly' | 'monthly',
-  startDate: Date,
-) {
-  return balance / getPaymentCount(startDate, payoffDate, cadence)
-}
-
-function getFirstWeekdayOnOrAfter(date: Date, weekday: number) {
-  const result = new Date(date)
-  const offset = (weekday - result.getDay() + 7) % 7
-  result.setDate(result.getDate() + offset)
-  return result
-}
-
-function getWeekdayList(days: number[]) {
-  return days.map((day) => weekdayOptions[day]?.label).filter(Boolean).join(', ')
-}
 
 type DashboardProps = {
   userId?: string
   userEmail?: string
+  appMode?: 'local' | 'supabase'
+  onModeChange?: (mode: 'local' | 'supabase') => void
   onSignOut?: () => Promise<void> | void
 }
 
-function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
+function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: DashboardProps) {
   const today = useMemo(() => new Date(), [])
   const todayKey = formatDateKey(today)
   const defaultState = useMemo(() => getDefaultPersistedState(), [])
 
   const [navOpen, setNavOpen] = useState(false)
   const [activeModal, setActiveModal] = useState<ModalView>(null)
+  const [activePage, setActivePage] = useState<PageView>('dashboard')
   const [syncReady, setSyncReady] = useState(false)
   const [currentMonth, setCurrentMonth] = useState(startOfMonth(today))
   const [selectedDateKey, setSelectedDateKey] = useState(todayKey)
@@ -386,6 +136,21 @@ function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
   const [purchaseGoals, setPurchaseGoals] = useState<PurchaseGoal[]>(
     defaultState.purchaseGoals,
   )
+  const [financialProfile, setFinancialProfile] = useState<FinancialProfile>(
+    defaultState.financialProfile,
+  )
+  const [emergencyFundPlan, setEmergencyFundPlan] = useState<EmergencyFundPlan>(
+    defaultState.emergencyFundPlan,
+  )
+  const [investmentAccounts, setInvestmentAccounts] = useState<InvestmentAccount[]>(
+    defaultState.investmentAccounts,
+  )
+  const [netWorthItems, setNetWorthItems] = useState<NetWorthItem[]>(
+    defaultState.netWorthItems,
+  )
+  const [scenarioPlans, setScenarioPlans] = useState<ScenarioPlan[]>(
+    defaultState.scenarioPlans,
+  )
   const [dayForm, setDayForm] = useState({
     title: '',
     amount: '',
@@ -408,6 +173,18 @@ function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
     startDate: todayKey,
     endDate: '',
   })
+  const [essentialExpenseForm, setEssentialExpenseForm] = useState({
+    rent: '',
+    rentDueDay: '1',
+    utilities: '',
+    phone: '',
+    internet: '',
+    insurance: '',
+    subscriptions: '',
+    groceries: '',
+    transportation: '',
+    dueDay: '1',
+  })
   const [paycheckForm, setPaycheckForm] = useState({
     title: 'Paycheck',
     amount: '',
@@ -415,6 +192,28 @@ function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
     dayOfMonth: '',
     weekday: '5',
     startDate: todayKey,
+  })
+  const [incomeModelForm, setIncomeModelForm] = useState({
+    name: 'Primary income',
+    type: 'salary' as FinancialProfile['incomeSources'][number]['type'],
+    amount: '',
+    hoursPerWeek: '40',
+    payFrequency: 'biweekly' as FinancialProfile['incomeSources'][number]['payFrequency'],
+    state: defaultState.financialProfile.state,
+    filingStatus: defaultState.financialProfile.filingStatus,
+  })
+  const [benefitForm, setBenefitForm] = useState({
+    name: 'Health insurance',
+    type: 'health' as BenefitElection['type'],
+    amountPerPaycheck: '',
+    taxTreatment: 'pre_tax' as BenefitElection['taxTreatment'],
+  })
+  const [retirementForm, setRetirementForm] = useState({
+    accountType: 'traditional_401k' as RetirementContribution['accountType'],
+    contributionMode: 'percent' as RetirementContribution['contributionMode'],
+    contributionValue: '',
+    employerMatchPercent: '',
+    employerMatchLimitPercent: '',
   })
   const [debtForm, setDebtForm] = useState({
     title: '',
@@ -425,6 +224,36 @@ function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
     payoffCadence: 'monthly' as 'weekly' | 'biweekly' | 'monthly',
     payoffMode: 'amount' as 'amount' | 'percent',
     payoffValue: '',
+    apr: '',
+    extraPayment: '',
+  })
+  const [emergencyFundForm, setEmergencyFundForm] = useState({
+    currentSavings: '',
+    monthlyEssentialExpenses: '',
+    targetMonths: '3',
+  })
+  const [investmentForm, setInvestmentForm] = useState({
+    title: '',
+    accountType: 'brokerage' as InvestmentAccount['accountType'],
+    balance: '',
+    monthlyContribution: '',
+    annualReturnRate: '7',
+  })
+  const [netWorthForm, setNetWorthForm] = useState({
+    title: '',
+    balance: '',
+    kind: 'asset' as NetWorthItem['kind'],
+    category: 'cash' as NetWorthItem['category'],
+  })
+  const [scenarioForm, setScenarioForm] = useState({
+    title: 'What if scenario',
+    incomeChangePercent: '',
+    rentChange: '',
+    benefitChangePerPaycheck: '',
+    retirementContributionChangePercent: '',
+    extraDebtPayment: '',
+    oneTimePurchase: '',
+    investmentContributionChange: '',
   })
   const [purchaseGoalForm, setPurchaseGoalForm] = useState({
     title: '',
@@ -433,204 +262,27 @@ function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
     savingsCadence: 'monthly' as 'weekly' | 'biweekly' | 'monthly',
   })
 
-  const allOccurrences = useMemo(() => {
-    const visibleMonthStart = startOfMonth(currentMonth)
-    const currentMonthStart = startOfMonth(today)
-    const recurrenceStart =
-      visibleMonthStart < currentMonthStart ? visibleMonthStart : currentMonthStart
-
-    const rangeDates = [
-      ...scheduledTransactions.map((transaction) => parseDateKey(transaction.date)),
-      ...debtPlans
-        .flatMap((debt) => [debt.dueDate, debt.payoffDate])
-        .filter(Boolean)
-        .map((value) => parseDateKey(value)),
-      financePlan.targetDate ? parseDateKey(financePlan.targetDate) : today,
-      new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0),
-    ]
-
-    const furthestDate = rangeDates.reduce((latest, current) =>
-      current > latest ? current : latest,
+  const allOccurrences = useMemo(
+    () =>
+      buildCalendarOccurrences({
+        currentMonth,
+        today,
+        scheduledTransactions,
+        recurringTransactions,
+        paycheckRules,
+        debtPlans,
+        financePlan,
+      }),
+    [
+      currentMonth,
+      debtPlans,
+      financePlan,
+      paycheckRules,
+      recurringTransactions,
+      scheduledTransactions,
       today,
-    )
-
-    const recurringOccurrences = getMonthsBetween(
-      recurrenceStart,
-      furthestDate,
-    ).flatMap((month) =>
-      recurringTransactions.flatMap((transaction) => {
-        if (transaction.frequency === 'monthly' && transaction.dayOfMonth) {
-          const day = clampDayOfMonth(
-            month.getFullYear(),
-            month.getMonth(),
-            transaction.dayOfMonth,
-          )
-          const occurrenceDate = new Date(month.getFullYear(), month.getMonth(), day)
-          const occurrenceKey = formatDateKey(occurrenceDate)
-
-          if (transaction.startDate && occurrenceKey < transaction.startDate) {
-            return []
-          }
-
-          if (transaction.endDate && occurrenceKey > transaction.endDate) {
-            return []
-          }
-
-          return [
-            {
-              id: `recurring-${transaction.id}-${month.getFullYear()}-${month.getMonth()}`,
-              originId: transaction.id,
-              originType: 'recurring' as const,
-              title: transaction.title,
-              amount: transaction.amount,
-              date: occurrenceKey,
-              type: transaction.type,
-              category: 'Recurring',
-            },
-          ]
-        }
-
-        if (transaction.frequency === 'weekly' && transaction.weekdays?.length) {
-          const monthStart = new Date(month.getFullYear(), month.getMonth(), 1)
-          const monthEnd = new Date(month.getFullYear(), month.getMonth() + 1, 0)
-          const occurrences: CalendarOccurrence[] = []
-
-          for (const weekday of transaction.weekdays) {
-            const cursor = getFirstWeekdayOnOrAfter(monthStart, weekday)
-
-            while (cursor <= monthEnd) {
-              const occurrenceKey = formatDateKey(cursor)
-
-              if (
-                (!transaction.startDate || occurrenceKey >= transaction.startDate) &&
-                (!transaction.endDate || occurrenceKey <= transaction.endDate)
-              ) {
-                occurrences.push({
-                  id: `recurring-${transaction.id}-${occurrenceKey}-${weekday}`,
-                  originId: transaction.id,
-                  originType: 'recurring' as const,
-                  title: transaction.title,
-                  amount: transaction.amount,
-                  date: occurrenceKey,
-                  type: transaction.type,
-                  category: 'Recurring',
-                })
-              }
-
-              cursor.setDate(cursor.getDate() + 7)
-            }
-          }
-
-          return occurrences
-        }
-
-        return []
-      }),
-    )
-
-    const paycheckOccurrences = getMonthsBetween(
-      recurrenceStart,
-      furthestDate,
-    ).flatMap((month) =>
-      paycheckRules.flatMap((paycheck) => {
-        if (paycheck.frequency === 'monthly' && paycheck.dayOfMonth) {
-          const day = clampDayOfMonth(
-            month.getFullYear(),
-            month.getMonth(),
-            paycheck.dayOfMonth,
-          )
-
-          return [
-            {
-              id: `paycheck-${paycheck.id}-${month.getFullYear()}-${month.getMonth()}`,
-              originId: paycheck.id,
-              originType: 'paycheck' as const,
-              title: paycheck.title,
-              amount: paycheck.amount,
-              date: formatDateKey(
-                new Date(month.getFullYear(), month.getMonth(), day),
-              ),
-              type: 'income' as const,
-              category: 'Paycheck',
-            },
-          ]
-        }
-
-        if (
-          (paycheck.frequency === 'weekly' || paycheck.frequency === 'biweekly') &&
-          typeof paycheck.weekday === 'number'
-        ) {
-          const interval = paycheck.frequency === 'weekly' ? 7 : 14
-          const monthStart = new Date(month.getFullYear(), month.getMonth(), 1)
-          const monthEnd = new Date(month.getFullYear(), month.getMonth() + 1, 0)
-          const anchor = paycheck.startDate
-            ? parseDateKey(paycheck.startDate)
-            : getFirstWeekdayOnOrAfter(recurrenceStart, paycheck.weekday)
-
-          const firstOccurrence =
-            anchor > monthStart
-              ? new Date(anchor)
-              : getFirstWeekdayOnOrAfter(monthStart, paycheck.weekday)
-
-          while (firstOccurrence < anchor) {
-            firstOccurrence.setDate(firstOccurrence.getDate() + interval)
-          }
-
-          const occurrences: CalendarOccurrence[] = []
-          const cursor = new Date(firstOccurrence)
-
-          while (cursor <= monthEnd) {
-            const diffDays = Math.round(
-              (cursor.getTime() - anchor.getTime()) / (1000 * 60 * 60 * 24),
-            )
-
-            if (diffDays >= 0 && diffDays % interval === 0) {
-              occurrences.push({
-                id: `paycheck-${paycheck.id}-${formatDateKey(cursor)}`,
-                originId: paycheck.id,
-                originType: 'paycheck' as const,
-                title: paycheck.title,
-                amount: paycheck.amount,
-                date: formatDateKey(cursor),
-                type: 'income' as const,
-                category: 'Paycheck',
-              })
-            }
-
-            cursor.setDate(cursor.getDate() + 7)
-          }
-
-          return occurrences
-        }
-
-        return []
-      }),
-    )
-
-    const manualOccurrences = scheduledTransactions.map((transaction) => ({
-      id: `single-${transaction.id}`,
-      originId: transaction.id,
-      originType: 'single' as const,
-      title: transaction.title,
-      amount: transaction.amount,
-      date: transaction.date,
-      type: transaction.type,
-      category: transaction.category,
-    }))
-
-    return [...manualOccurrences, ...recurringOccurrences, ...paycheckOccurrences].sort(
-      (left, right) =>
-        parseDateKey(left.date).getTime() - parseDateKey(right.date).getTime(),
-    )
-  }, [
-    currentMonth,
-    debtPlans,
-    financePlan.targetDate,
-    paycheckRules,
-    recurringTransactions,
-    scheduledTransactions,
-    today,
-  ])
+    ],
+  )
 
   const calendarDays = useMemo(() => getCalendarDays(currentMonth), [currentMonth])
   const selectedDayTransactions = allOccurrences.filter(
@@ -639,20 +291,14 @@ function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
   const currentBalance =
     currentBalanceInput.trim() === '' ? 0 : Number(currentBalanceInput)
   const projectedBalance = (targetDateKey: string) =>
-    currentBalance +
-    allOccurrences
-      .filter(
-        (transaction) =>
-          transaction.date >= todayKey && transaction.date <= targetDateKey,
-      )
-      .reduce(
-        (sum, transaction) =>
-          sum + getSignedAmount(transaction.amount, transaction.type),
-        0,
-      )
+    projectBalance(currentBalance, allOccurrences, todayKey, targetDateKey)
   const currentAvailableBalance = projectedBalance(todayKey)
   const selectedDayBalance = projectedBalance(selectedDateKey)
   const totalDebt = debtPlans.reduce((sum, debt) => sum + debt.balance, 0)
+  const totalInvestmentBalance = investmentAccounts.reduce(
+    (sum, account) => sum + account.balance,
+    0,
+  )
   const projectedMonthEndBalance = projectedBalance(
     formatDateKey(endOfMonth(currentMonth)),
   )
@@ -671,11 +317,11 @@ function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
   const debtRecommendedPayment =
     debtForm.payoffDate && debtForm.balance
       ? getRecommendedPayment(
-          Number(debtForm.balance),
-          debtForm.payoffDate,
-          debtForm.payoffCadence,
-          today,
-        )
+        Number(debtForm.balance),
+        debtForm.payoffDate,
+        debtForm.payoffCadence,
+        today,
+      )
       : 0
   const debtCustomPayment =
     debtForm.payoffDate && debtForm.balance && debtForm.payoffValue
@@ -690,18 +336,196 @@ function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
   const nearestPurchaseGoal = purchaseGoals
     .filter((goal) => goal.targetDate >= todayKey)
     .sort((left, right) => left.targetDate.localeCompare(right.targetDate))[0]
+  const monthStartKey = formatDateKey(startOfMonth(currentMonth))
+  const monthEndKey = formatDateKey(endOfMonth(currentMonth))
+  const currentMonthOccurrences = allOccurrences.filter(
+    (transaction) => transaction.date >= monthStartKey && transaction.date <= monthEndKey,
+  )
+  const monthlyIncome = currentMonthOccurrences
+    .filter((transaction) => transaction.type === 'income')
+    .reduce((sum, transaction) => sum + transaction.amount, 0)
+  const monthlyOutflow = currentMonthOccurrences
+    .filter((transaction) => transaction.type !== 'income')
+    .reduce((sum, transaction) => sum + transaction.amount, 0)
+  const essentialMonthlyOutflow = currentMonthOccurrences
+    .filter((transaction) => transaction.category === 'Essentials')
+    .reduce((sum, transaction) => sum + transaction.amount, 0)
+  const monthlyNet = monthlyIncome - monthlyOutflow
+  const nextPaycheck = allOccurrences.find(
+    (transaction) => transaction.date >= todayKey && transaction.type === 'income',
+  )
+  const primaryIncome = financialProfile.incomeSources[0]
+  const paycheckEstimate = primaryIncome
+    ? estimatePaycheck({
+      income: primaryIncome,
+      state: financialProfile.state,
+      filingStatus: financialProfile.filingStatus,
+      benefitElections: financialProfile.benefitElections,
+      retirementContributions: financialProfile.retirementContributions,
+    })
+    : null
+  const totalBenefitsPerPaycheck = financialProfile.benefitElections.reduce(
+    (sum, benefit) => sum + benefit.amountPerPaycheck,
+    0,
+  )
+  const totalRetirementPerPaycheck =
+    paycheckEstimate?.retirementContributionPerPaycheck ?? 0
+  const sixMonthProjection = projectedBalance(
+    formatDateKey(new Date(today.getFullYear(), today.getMonth() + 6, today.getDate())),
+  )
+  const emergencyFundProgress = calculateEmergencyFundProgress(
+    emergencyFundPlan.currentSavings,
+    emergencyFundPlan.monthlyEssentialExpenses || essentialMonthlyOutflow,
+    emergencyFundPlan.targetMonths || 3,
+  )
+  const fiveYearInvestmentProjection = investmentAccounts.reduce((sum, account) => {
+    const projection = projectInvestmentGrowth({
+      startingBalance: account.balance,
+      monthlyContribution: account.monthlyContribution,
+      annualReturnRate: account.annualReturnRate,
+      years: 5,
+    })
+    const finalPoint = projection[projection.length - 1]
+
+    return sum + (finalPoint?.balance ?? account.balance)
+  }, 0)
+  const netWorthSummary = calculateNetWorth(
+    [
+      { id: -1, name: 'Current cash', balance: currentAvailableBalance },
+      ...investmentAccounts.map((account) => ({
+        id: account.id,
+        name: account.title,
+        balance: account.balance,
+      })),
+      ...netWorthItems
+        .filter((item) => item.kind === 'asset')
+        .map((item) => ({
+          id: item.id,
+          name: item.title,
+          balance: item.balance,
+        })),
+    ],
+    [
+      ...debtPlans.map((debt) => ({
+        id: debt.id,
+        name: debt.title,
+        balance: debt.balance,
+      })),
+      ...netWorthItems
+        .filter((item) => item.kind === 'liability')
+        .map((item) => ({
+          id: item.id,
+          name: item.title,
+          balance: item.balance,
+        })),
+    ],
+  )
+  const activeScenario = scenarioPlans[0]
+  const paychecksPerMonth = primaryIncome
+    ? primaryIncome.payFrequency === 'weekly'
+      ? 52 / 12
+      : primaryIncome.payFrequency === 'biweekly'
+        ? 26 / 12
+        : primaryIncome.payFrequency === 'semimonthly'
+          ? 2
+          : 1
+    : 2
+  const scenarioImpact = activeScenario
+    ? projectScenarioImpact({
+      monthlyNet,
+      sixMonthCash: sixMonthProjection,
+      netPaycheck: paycheckEstimate?.estimatedNetPaycheck ?? nextPaycheck?.amount ?? 0,
+      netWorth: netWorthSummary.netWorth,
+      totalDebt,
+      investmentFiveYearValue: fiveYearInvestmentProjection,
+      incomeChangePercent: activeScenario.incomeChangePercent,
+      rentChange: activeScenario.rentChange,
+      benefitChangePerPaycheck: activeScenario.benefitChangePerPaycheck,
+      retirementContributionChangePercent:
+        activeScenario.retirementContributionChangePercent,
+      extraDebtPayment: activeScenario.extraDebtPayment,
+      oneTimePurchase: activeScenario.oneTimePurchase,
+      investmentContributionChange: activeScenario.investmentContributionChange,
+      paychecksPerMonth,
+    })
+    : null
+  const monthlyProjection = projectBalanceMonths(
+    currentBalance,
+    allOccurrences,
+    today,
+    6,
+  )
+  const maxProjectionMagnitude = Math.max(
+    1,
+    ...monthlyProjection.map((point) => Math.abs(point.balance)),
+  )
+  const spendingByCategory = currentMonthOccurrences
+    .filter((transaction) => transaction.type !== 'income')
+    .reduce<Record<string, number>>((categories, transaction) => {
+      const category = transaction.category ?? 'General'
+
+      return {
+        ...categories,
+        [category]: (categories[category] ?? 0) + transaction.amount,
+      }
+    }, {})
+  const spendingTrend = Object.entries(spendingByCategory)
+    .map(([category, amount]) => ({ category, amount }))
+    .sort((left, right) => right.amount - left.amount)
+  const maxSpendingCategory = Math.max(1, ...spendingTrend.map((item) => item.amount))
+  const healthLabel =
+    monthlyNet >= 0 && currentAvailableBalance >= 0
+      ? 'Stable'
+      : projectedMonthEndBalance < 0
+        ? 'Needs attention'
+        : 'Tight'
+  const primaryRecommendation =
+    projectedMonthEndBalance < 0
+      ? 'Your current schedule projects a negative month-end balance. Review upcoming bills or add expected income.'
+      : !paycheckEstimate
+        ? 'Add your income and paycheck assumptions so the planner can estimate real take-home pay.'
+        : essentialMonthlyOutflow === 0
+          ? 'Add rent and essential monthly expenses so affordability checks start with your real obligations.'
+          : totalDebt > 0 && monthlyNet > 0
+            ? 'You have positive projected cash flow. Consider directing part of the surplus toward debt or emergency savings.'
+            : !financePlan.targetDate
+              ? 'Set a target amount and date so the planner can judge whether your cash flow supports the goal.'
+              : planGap > 0
+                ? 'Your target is not fully funded yet. Add income, reduce planned spending, or move the target date.'
+                : 'Your current plan is on track. Keep upcoming transactions current so the forecast stays useful.'
 
   useEffect(() => {
     if (!userId) {
+      const localState = normalizePersistedState(loadPersistedState())
+
+      setCurrentBalanceInput(localState.currentBalanceInput)
+      setBalanceDraft(localState.currentBalanceInput)
+      setScheduledTransactions(localState.scheduledTransactions)
+      setRecurringTransactions(localState.recurringTransactions)
+      setPaycheckRules(localState.paycheckRules)
+      setDebtPlans(localState.debtPlans)
+      setFinancePlan(localState.financePlan)
+      setPurchaseGoals(localState.purchaseGoals)
+      setFinancialProfile(localState.financialProfile)
+      setEmergencyFundPlan(localState.emergencyFundPlan)
+      setInvestmentAccounts(localState.investmentAccounts)
+      setNetWorthItems(localState.netWorthItems)
+      setScenarioPlans(localState.scenarioPlans)
       setSyncReady(true)
       return
     }
 
+    if (!supabase) {
+      setSyncReady(true)
+      return
+    }
+
+    const supabaseClient = supabase
     let active = true
 
     async function hydrateFromCloud() {
       const localState = normalizePersistedState(loadPersistedState())
-      const { data, error } = await supabase
+      const { data, error } = await supabaseClient
         .from(DASHBOARD_STATE_TABLE)
         .select('payload')
         .eq('user_id', userId)
@@ -735,9 +559,14 @@ function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
       setDebtPlans(hydratedState.debtPlans)
       setFinancePlan(hydratedState.financePlan)
       setPurchaseGoals(hydratedState.purchaseGoals)
+      setFinancialProfile(hydratedState.financialProfile)
+      setEmergencyFundPlan(hydratedState.emergencyFundPlan)
+      setInvestmentAccounts(hydratedState.investmentAccounts)
+      setNetWorthItems(hydratedState.netWorthItems)
+      setScenarioPlans(hydratedState.scenarioPlans)
 
       if (shouldBackfillLocal) {
-        const { error: upsertError } = await supabase
+        const { error: upsertError } = await supabaseClient
           .from(DASHBOARD_STATE_TABLE)
           .upsert(
             {
@@ -767,7 +596,7 @@ function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
   }, [userId])
 
   useEffect(() => {
-    if (!userId || !syncReady) {
+    if (!syncReady) {
       return
     }
 
@@ -779,9 +608,19 @@ function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
       debtPlans,
       financePlan,
       purchaseGoals,
+      financialProfile,
+      emergencyFundPlan,
+      investmentAccounts,
+      netWorthItems,
+      scenarioPlans,
     }
 
     const timeoutId = window.setTimeout(async () => {
+      if (!userId || !supabase) {
+        savePersistedState(payload)
+        return
+      }
+
       const { error } = await supabase.from(DASHBOARD_STATE_TABLE).upsert(
         {
           user_id: userId,
@@ -799,10 +638,15 @@ function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
   }, [
     currentBalanceInput,
     debtPlans,
+    emergencyFundPlan,
+    financialProfile,
     financePlan,
+    investmentAccounts,
+    netWorthItems,
     paycheckRules,
     purchaseGoals,
     recurringTransactions,
+    scenarioPlans,
     scheduledTransactions,
     syncReady,
     userId,
@@ -828,6 +672,52 @@ function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
   function openModal(view: Exclude<ModalView, null>) {
     if (view === 'balanceEdit') {
       setBalanceDraft(currentBalanceInput)
+    }
+
+    if (view === 'incomeModel') {
+      const savedIncome = financialProfile.incomeSources[0]
+
+      setIncomeModelForm({
+        name: savedIncome?.name ?? 'Primary income',
+        type: savedIncome?.type ?? 'salary',
+        amount: savedIncome ? String(savedIncome.amount) : '',
+        hoursPerWeek: savedIncome?.hoursPerWeek
+          ? String(savedIncome.hoursPerWeek)
+          : '40',
+        payFrequency: savedIncome?.payFrequency ?? 'biweekly',
+        state: financialProfile.state,
+        filingStatus: financialProfile.filingStatus,
+      })
+    }
+
+    if (view === 'benefits') {
+      const savedRetirement = financialProfile.retirementContributions[0]
+
+      if (savedRetirement) {
+        setRetirementForm({
+          accountType: savedRetirement.accountType,
+          contributionMode: savedRetirement.contributionMode,
+          contributionValue: String(savedRetirement.contributionValue),
+          employerMatchPercent: savedRetirement.employerMatchPercent
+            ? String(savedRetirement.employerMatchPercent)
+            : '',
+          employerMatchLimitPercent: savedRetirement.employerMatchLimitPercent
+            ? String(savedRetirement.employerMatchLimitPercent)
+            : '',
+        })
+      }
+    }
+
+    if (view === 'emergencyFund') {
+      setEmergencyFundForm({
+        currentSavings: emergencyFundPlan.currentSavings
+          ? String(emergencyFundPlan.currentSavings)
+          : '',
+        monthlyEssentialExpenses: emergencyFundPlan.monthlyEssentialExpenses
+          ? String(emergencyFundPlan.monthlyEssentialExpenses)
+          : String(Math.round(essentialMonthlyOutflow || monthlyOutflow || 0)),
+        targetMonths: String(emergencyFundPlan.targetMonths || 3),
+      })
     }
 
     setActiveModal(view)
@@ -947,6 +837,7 @@ function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
         weekdays:
           recurringForm.frequency === 'weekly' ? recurringForm.weekdays : undefined,
         type: recurringForm.type,
+        category: 'Recurring',
         startDate: recurringForm.startDate || undefined,
         endDate: recurringForm.endDate || undefined,
       },
@@ -961,6 +852,86 @@ function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
       type: 'expense',
       startDate: todayKey,
       endDate: '',
+    })
+  }
+
+  function handleAddEssentialExpenses(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    const entries = [
+      {
+        title: 'Rent / mortgage',
+        amount: essentialExpenseForm.rent,
+        dayOfMonth: essentialExpenseForm.rentDueDay,
+      },
+      {
+        title: 'Utilities',
+        amount: essentialExpenseForm.utilities,
+        dayOfMonth: essentialExpenseForm.dueDay,
+      },
+      {
+        title: 'Phone',
+        amount: essentialExpenseForm.phone,
+        dayOfMonth: essentialExpenseForm.dueDay,
+      },
+      {
+        title: 'Internet',
+        amount: essentialExpenseForm.internet,
+        dayOfMonth: essentialExpenseForm.dueDay,
+      },
+      {
+        title: 'Insurance',
+        amount: essentialExpenseForm.insurance,
+        dayOfMonth: essentialExpenseForm.dueDay,
+      },
+      {
+        title: 'Subscriptions',
+        amount: essentialExpenseForm.subscriptions,
+        dayOfMonth: essentialExpenseForm.dueDay,
+      },
+      {
+        title: 'Groceries',
+        amount: essentialExpenseForm.groceries,
+        dayOfMonth: essentialExpenseForm.dueDay,
+      },
+      {
+        title: 'Transportation',
+        amount: essentialExpenseForm.transportation,
+        dayOfMonth: essentialExpenseForm.dueDay,
+      },
+    ].filter((entry) => Number(entry.amount) > 0)
+
+    if (entries.length === 0) {
+      return
+    }
+
+    const now = Date.now()
+
+    setRecurringTransactions((current) => [
+      ...current,
+      ...entries.map((entry, index) => ({
+        id: now + index,
+        title: entry.title,
+        amount: Number(entry.amount),
+        frequency: 'monthly' as const,
+        dayOfMonth: Number(entry.dayOfMonth),
+        type: 'expense' as const,
+        category: 'Essentials',
+        startDate: todayKey,
+      })),
+    ])
+
+    setEssentialExpenseForm({
+      rent: '',
+      rentDueDay: '1',
+      utilities: '',
+      phone: '',
+      internet: '',
+      insurance: '',
+      subscriptions: '',
+      groceries: '',
+      transportation: '',
+      dueDay: '1',
     })
   }
 
@@ -995,12 +966,12 @@ function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
             : undefined,
         weekday:
           paycheckForm.frequency === 'weekly' ||
-          paycheckForm.frequency === 'biweekly'
+            paycheckForm.frequency === 'biweekly'
             ? Number(paycheckForm.weekday)
             : undefined,
         startDate:
           paycheckForm.frequency === 'weekly' ||
-          paycheckForm.frequency === 'biweekly'
+            paycheckForm.frequency === 'biweekly'
             ? paycheckForm.startDate
             : undefined,
       },
@@ -1014,6 +985,117 @@ function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
       weekday: '5',
       startDate: todayKey,
     })
+  }
+
+  function handleSaveIncomeModel(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    if (!incomeModelForm.name || !incomeModelForm.amount) {
+      return
+    }
+
+    setFinancialProfile((current) => ({
+      ...current,
+      state: incomeModelForm.state.trim().toUpperCase(),
+      filingStatus: incomeModelForm.filingStatus,
+      incomeSources: [
+        {
+          id: current.incomeSources[0]?.id ?? Date.now(),
+          name: incomeModelForm.name,
+          type: incomeModelForm.type,
+          amount: Number(incomeModelForm.amount),
+          hoursPerWeek:
+            incomeModelForm.type === 'hourly'
+              ? Number(incomeModelForm.hoursPerWeek || 40)
+              : undefined,
+          payFrequency: incomeModelForm.payFrequency,
+        },
+      ],
+    }))
+  }
+
+  function handleAddBenefit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    if (!benefitForm.name || !benefitForm.amountPerPaycheck) {
+      return
+    }
+
+    setFinancialProfile((current) => ({
+      ...current,
+      benefitElections: [
+        ...current.benefitElections,
+        {
+          id: Date.now(),
+          name: benefitForm.name,
+          type: benefitForm.type,
+          amountPerPaycheck: Number(benefitForm.amountPerPaycheck),
+          taxTreatment: benefitForm.taxTreatment,
+        },
+      ],
+    }))
+
+    setBenefitForm({
+      name: 'Health insurance',
+      type: 'health',
+      amountPerPaycheck: '',
+      taxTreatment: 'pre_tax',
+    })
+  }
+
+  function handleSaveRetirementContribution(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    if (!retirementForm.contributionValue) {
+      return
+    }
+
+    setFinancialProfile((current) => ({
+      ...current,
+      retirementContributions: [
+        {
+          id: current.retirementContributions[0]?.id ?? Date.now(),
+          accountType: retirementForm.accountType,
+          contributionMode: retirementForm.contributionMode,
+          contributionValue: Number(retirementForm.contributionValue),
+          employerMatchPercent: retirementForm.employerMatchPercent
+            ? Number(retirementForm.employerMatchPercent)
+            : undefined,
+          employerMatchLimitPercent: retirementForm.employerMatchLimitPercent
+            ? Number(retirementForm.employerMatchLimitPercent)
+            : undefined,
+        },
+      ],
+    }))
+  }
+
+  function handleUseNetPaycheck() {
+    if (!paycheckEstimate || !primaryIncome) {
+      return
+    }
+
+    if (
+      primaryIncome.payFrequency !== 'weekly' &&
+      primaryIncome.payFrequency !== 'biweekly' &&
+      primaryIncome.payFrequency !== 'monthly'
+    ) {
+      return
+    }
+
+    const paycheckFrequency = primaryIncome.payFrequency
+
+    setPaycheckRules((current) => [
+      ...current,
+      {
+        id: Date.now(),
+        title: `${primaryIncome.name} net pay`,
+        amount: Math.max(0, Math.round(paycheckEstimate.estimatedNetPaycheck)),
+        frequency: paycheckFrequency,
+        dayOfMonth: paycheckFrequency === 'monthly' ? 1 : undefined,
+        weekday: paycheckFrequency === 'monthly' ? undefined : 5,
+        startDate: paycheckFrequency === 'monthly' ? undefined : todayKey,
+      },
+    ])
   }
 
   function handleAddDebt(event: React.FormEvent<HTMLFormElement>) {
@@ -1037,6 +1119,8 @@ function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
         minimumDue: Number(debtForm.minimumDue),
         dueDate: debtForm.dueDate,
         payoffDate: debtForm.payoffDate,
+        apr: debtForm.apr ? Number(debtForm.apr) : undefined,
+        extraPayment: debtForm.extraPayment ? Number(debtForm.extraPayment) : undefined,
         payoffCadence: debtForm.payoffDate ? debtForm.payoffCadence : undefined,
         payoffMode:
           debtForm.payoffDate && debtForm.payoffValue ? debtForm.payoffMode : undefined,
@@ -1056,6 +1140,8 @@ function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
       payoffCadence: 'monthly',
       payoffMode: 'amount',
       payoffValue: '',
+      apr: '',
+      extraPayment: '',
     })
   }
 
@@ -1082,6 +1168,106 @@ function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
       cost: '',
       targetDate: '',
       savingsCadence: 'monthly',
+    })
+  }
+
+  function handleSaveEmergencyFund(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    setEmergencyFundPlan({
+      currentSavings: Number(emergencyFundForm.currentSavings || 0),
+      monthlyEssentialExpenses: Number(emergencyFundForm.monthlyEssentialExpenses || 0),
+      targetMonths: Number(emergencyFundForm.targetMonths || 3),
+    })
+  }
+
+  function handleAddInvestment(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    if (!investmentForm.title || !investmentForm.balance) {
+      return
+    }
+
+    setInvestmentAccounts((current) => [
+      ...current,
+      {
+        id: Date.now(),
+        title: investmentForm.title,
+        accountType: investmentForm.accountType,
+        balance: Number(investmentForm.balance),
+        monthlyContribution: Number(investmentForm.monthlyContribution || 0),
+        annualReturnRate: Number(investmentForm.annualReturnRate || 0),
+      },
+    ])
+
+    setInvestmentForm({
+      title: '',
+      accountType: 'brokerage',
+      balance: '',
+      monthlyContribution: '',
+      annualReturnRate: '7',
+    })
+  }
+
+  function handleAddNetWorthItem(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    if (!netWorthForm.title || !netWorthForm.balance) {
+      return
+    }
+
+    setNetWorthItems((current) => [
+      ...current,
+      {
+        id: Date.now(),
+        title: netWorthForm.title,
+        balance: Number(netWorthForm.balance),
+        kind: netWorthForm.kind,
+        category: netWorthForm.category,
+      },
+    ])
+
+    setNetWorthForm({
+      title: '',
+      balance: '',
+      kind: 'asset',
+      category: 'cash',
+    })
+  }
+
+  function handleSaveScenario(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    if (!scenarioForm.title) {
+      return
+    }
+
+    const scenario: ScenarioPlan = {
+      id: Date.now(),
+      title: scenarioForm.title,
+      incomeChangePercent: Number(scenarioForm.incomeChangePercent || 0),
+      rentChange: Number(scenarioForm.rentChange || 0),
+      benefitChangePerPaycheck: Number(scenarioForm.benefitChangePerPaycheck || 0),
+      retirementContributionChangePercent: Number(
+        scenarioForm.retirementContributionChangePercent || 0,
+      ),
+      extraDebtPayment: Number(scenarioForm.extraDebtPayment || 0),
+      oneTimePurchase: Number(scenarioForm.oneTimePurchase || 0),
+      investmentContributionChange: Number(
+        scenarioForm.investmentContributionChange || 0,
+      ),
+    }
+
+    setScenarioPlans((current) => [scenario, ...current.filter((item) => item.id !== scenario.id)])
+    setScenarioForm({
+      title: 'What if scenario',
+      incomeChangePercent: '',
+      rentChange: '',
+      benefitChangePerPaycheck: '',
+      retirementContributionChangePercent: '',
+      extraDebtPayment: '',
+      oneTimePurchase: '',
+      investmentContributionChange: '',
     })
   }
 
@@ -1310,11 +1496,10 @@ function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
                     </div>
                     <div className="row-actions">
                       <span
-                        className={`day-net ${
-                          getSignedAmount(transaction.amount, transaction.type) >= 0
-                            ? 'positive'
-                            : 'negative'
-                        }`}
+                        className={`day-net ${getSignedAmount(transaction.amount, transaction.type) >= 0
+                          ? 'positive'
+                          : 'negative'
+                          }`}
                       >
                         {getSignedAmount(transaction.amount, transaction.type) >= 0 ? '+' : '-'}
                         {currency.format(transaction.amount)}
@@ -1619,7 +1804,7 @@ function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
                         : item.frequency === 'weekly' && typeof item.weekday === 'number'
                           ? `Weekly on ${weekdayOptions[item.weekday].label}`
                           : item.frequency === 'biweekly' &&
-                              typeof item.weekday === 'number'
+                            typeof item.weekday === 'number'
                             ? `Biweekly on ${weekdayOptions[item.weekday].label}`
                             : ''}
                     </p>
@@ -1635,6 +1820,565 @@ function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
                   >
                     Remove
                   </button>
+                </div>
+              ))
+            )}
+          </div>
+        </>
+      )
+    }
+
+    if (activeModal === 'incomeModel') {
+      const canUseEstimateAsPaycheck =
+        primaryIncome?.payFrequency === 'weekly' ||
+        primaryIncome?.payFrequency === 'biweekly' ||
+        primaryIncome?.payFrequency === 'monthly'
+
+      return (
+        <>
+          <div className="modal-header">
+            <div>
+              <p className="eyebrow">Income model</p>
+              <h2>Gross to net paycheck</h2>
+            </div>
+            <button type="button" className="ghost-button" onClick={closeModal}>
+              Close
+            </button>
+          </div>
+          <p className="empty-copy modal-intro">
+            Estimate take-home pay from salary or hourly income, state, filing
+            status, benefits, and retirement deductions. These numbers are planning
+            estimates, not tax or financial advice.
+          </p>
+          <form className="stack-form" onSubmit={handleSaveIncomeModel}>
+            <input
+              type="text"
+              placeholder="Income name"
+              value={incomeModelForm.name}
+              onChange={(event) =>
+                setIncomeModelForm((current) => ({
+                  ...current,
+                  name: event.target.value,
+                }))
+              }
+            />
+            <div className="split-row">
+              <label className="field-stack">
+                <span>Income type</span>
+                <select
+                  value={incomeModelForm.type}
+                  onChange={(event) =>
+                    setIncomeModelForm((current) => ({
+                      ...current,
+                      type: event.target.value as typeof incomeModelForm.type,
+                    }))
+                  }
+                >
+                  <option value="salary">Salary</option>
+                  <option value="hourly">Hourly</option>
+                  <option value="contract">Contract</option>
+                  <option value="other">Other</option>
+                </select>
+              </label>
+              <label className="field-stack">
+                <span>{incomeModelForm.type === 'hourly' ? 'Hourly rate' : 'Annual amount'}</span>
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  value={incomeModelForm.amount}
+                  onChange={(event) =>
+                    setIncomeModelForm((current) => ({
+                      ...current,
+                      amount: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+            </div>
+            <div className="split-row">
+              <label className="field-stack">
+                <span>Hours per week</span>
+                <input
+                  type="number"
+                  min="0"
+                  disabled={incomeModelForm.type !== 'hourly'}
+                  value={incomeModelForm.hoursPerWeek}
+                  onChange={(event) =>
+                    setIncomeModelForm((current) => ({
+                      ...current,
+                      hoursPerWeek: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+              <label className="field-stack">
+                <span>Pay frequency</span>
+                <select
+                  value={incomeModelForm.payFrequency}
+                  onChange={(event) =>
+                    setIncomeModelForm((current) => ({
+                      ...current,
+                      payFrequency: event.target.value as typeof incomeModelForm.payFrequency,
+                    }))
+                  }
+                >
+                  <option value="weekly">Weekly</option>
+                  <option value="biweekly">Biweekly</option>
+                  <option value="semimonthly">Semimonthly</option>
+                  <option value="monthly">Monthly</option>
+                </select>
+              </label>
+            </div>
+            <div className="split-row">
+              <label className="field-stack">
+                <span>State</span>
+                <input
+                  type="text"
+                  maxLength={2}
+                  placeholder="FL"
+                  value={incomeModelForm.state}
+                  onChange={(event) =>
+                    setIncomeModelForm((current) => ({
+                      ...current,
+                      state: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+              <label className="field-stack">
+                <span>Filing status</span>
+                <select
+                  value={incomeModelForm.filingStatus}
+                  onChange={(event) =>
+                    setIncomeModelForm((current) => ({
+                      ...current,
+                      filingStatus: event.target.value as typeof incomeModelForm.filingStatus,
+                    }))
+                  }
+                >
+                  <option value="single">Single</option>
+                  <option value="married_joint">Married filing jointly</option>
+                  <option value="married_separate">Married filing separately</option>
+                  <option value="head_of_household">Head of household</option>
+                </select>
+              </label>
+            </div>
+            <button type="submit">Save income model</button>
+          </form>
+
+          <div className="status-strip estimate-strip">
+            <div>
+              <span>Gross per paycheck</span>
+              <strong>
+                {paycheckEstimate ? currency.format(paycheckEstimate.grossPerPaycheck) : '--'}
+              </strong>
+            </div>
+            <div>
+              <span>Estimated net paycheck</span>
+              <strong>
+                {paycheckEstimate
+                  ? currency.format(paycheckEstimate.estimatedNetPaycheck)
+                  : '--'}
+              </strong>
+            </div>
+          </div>
+          <div className="estimate-breakdown">
+            <div>
+              <span>Taxes per paycheck</span>
+              <strong>
+                {paycheckEstimate
+                  ? currency.format(paycheckEstimate.estimatedTaxPerPaycheck)
+                  : '--'}
+              </strong>
+            </div>
+            <div>
+              <span>Benefits per paycheck</span>
+              <strong>{currency.format(totalBenefitsPerPaycheck)}</strong>
+            </div>
+            <div>
+              <span>Retirement per paycheck</span>
+              <strong>{currency.format(totalRetirementPerPaycheck)}</strong>
+            </div>
+          </div>
+          {paycheckEstimate ? (
+            <button
+              type="button"
+              className="ghost-button full-width-action"
+              disabled={!canUseEstimateAsPaycheck}
+              onClick={handleUseNetPaycheck}
+            >
+              Use estimated net pay as paycheck rule
+            </button>
+          ) : null}
+          {!canUseEstimateAsPaycheck && paycheckEstimate ? (
+            <p className="empty-copy">
+              Semimonthly scheduling is modeled for pay estimates, but paycheck
+              calendar rules currently support weekly, biweekly, and monthly timing.
+            </p>
+          ) : null}
+        </>
+      )
+    }
+
+    if (activeModal === 'benefits') {
+      const retirementContribution = financialProfile.retirementContributions[0]
+
+      return (
+        <>
+          <div className="modal-header">
+            <div>
+              <p className="eyebrow">Benefits</p>
+              <h2>Deductions and retirement</h2>
+            </div>
+            <button type="button" className="ghost-button" onClick={closeModal}>
+              Close
+            </button>
+          </div>
+          <p className="empty-copy modal-intro">
+            Add per-paycheck deductions for health plans, insurance, HSA/FSA, and
+            other benefits. Pre-tax items reduce the taxable income estimate.
+          </p>
+          <form className="stack-form" onSubmit={handleAddBenefit}>
+            <input
+              type="text"
+              placeholder="Benefit name"
+              value={benefitForm.name}
+              onChange={(event) =>
+                setBenefitForm((current) => ({ ...current, name: event.target.value }))
+              }
+            />
+            <div className="split-row">
+              <label className="field-stack">
+                <span>Benefit type</span>
+                <select
+                  value={benefitForm.type}
+                  onChange={(event) =>
+                    setBenefitForm((current) => ({
+                      ...current,
+                      type: event.target.value as BenefitElection['type'],
+                    }))
+                  }
+                >
+                  <option value="health">Health insurance</option>
+                  <option value="dental">Dental</option>
+                  <option value="vision">Vision</option>
+                  <option value="life">Life insurance</option>
+                  <option value="disability">Disability insurance</option>
+                  <option value="accident">Accident insurance</option>
+                  <option value="critical_illness">Critical illness</option>
+                  <option value="hospital_indemnity">Hospital indemnity</option>
+                  <option value="hsa">HSA</option>
+                  <option value="fsa">FSA</option>
+                  <option value="other">Other</option>
+                </select>
+              </label>
+              <label className="field-stack">
+                <span>Amount per paycheck</span>
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  value={benefitForm.amountPerPaycheck}
+                  onChange={(event) =>
+                    setBenefitForm((current) => ({
+                      ...current,
+                      amountPerPaycheck: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+            </div>
+            <select
+              value={benefitForm.taxTreatment}
+              onChange={(event) =>
+                setBenefitForm((current) => ({
+                  ...current,
+                  taxTreatment: event.target.value as BenefitElection['taxTreatment'],
+                }))
+              }
+            >
+              <option value="pre_tax">Pre-tax deduction</option>
+              <option value="post_tax">Post-tax deduction</option>
+            </select>
+            <button type="submit">Add benefit deduction</button>
+          </form>
+
+          <form className="stack-form retirement-form" onSubmit={handleSaveRetirementContribution}>
+            <div className="modal-header compact-modal-header">
+              <div>
+                <p className="eyebrow">Retirement</p>
+                <h2>Contribution plan</h2>
+              </div>
+            </div>
+            <div className="split-row">
+              <label className="field-stack">
+                <span>Account</span>
+                <select
+                  value={retirementForm.accountType}
+                  onChange={(event) =>
+                    setRetirementForm((current) => ({
+                      ...current,
+                      accountType: event.target.value as RetirementContribution['accountType'],
+                    }))
+                  }
+                >
+                  <option value="traditional_401k">Traditional 401(k)</option>
+                  <option value="roth_401k">Roth 401(k)</option>
+                  <option value="traditional_ira">Traditional IRA</option>
+                  <option value="roth_ira">Roth IRA</option>
+                </select>
+              </label>
+              <label className="field-stack">
+                <span>Contribution type</span>
+                <select
+                  value={retirementForm.contributionMode}
+                  onChange={(event) =>
+                    setRetirementForm((current) => ({
+                      ...current,
+                      contributionMode:
+                        event.target.value as RetirementContribution['contributionMode'],
+                    }))
+                  }
+                >
+                  <option value="percent">% of paycheck</option>
+                  <option value="amount">Fixed amount</option>
+                </select>
+              </label>
+            </div>
+            <div className="split-row">
+              <input
+                type="number"
+                min="0"
+                placeholder={retirementForm.contributionMode === 'percent' ? 'e.g. 6' : 'e.g. 150'}
+                value={retirementForm.contributionValue}
+                onChange={(event) =>
+                  setRetirementForm((current) => ({
+                    ...current,
+                    contributionValue: event.target.value,
+                  }))
+                }
+              />
+              <input
+                type="number"
+                min="0"
+                placeholder="Employer match %"
+                value={retirementForm.employerMatchPercent}
+                onChange={(event) =>
+                  setRetirementForm((current) => ({
+                    ...current,
+                    employerMatchPercent: event.target.value,
+                  }))
+                }
+              />
+            </div>
+            <input
+              type="number"
+              min="0"
+              placeholder="Employer match limit % of pay"
+              value={retirementForm.employerMatchLimitPercent}
+              onChange={(event) =>
+                setRetirementForm((current) => ({
+                  ...current,
+                  employerMatchLimitPercent: event.target.value,
+                }))
+              }
+            />
+            <button type="submit">Save retirement contribution</button>
+          </form>
+
+          <div className="modal-list compact-list">
+            {financialProfile.benefitElections.length === 0 ? (
+              <p className="empty-copy">No benefit deductions added yet.</p>
+            ) : (
+              financialProfile.benefitElections.map((benefit) => (
+                <div className="modal-list-row" key={benefit.id}>
+                  <div>
+                    <strong>{benefit.name}</strong>
+                    <p>
+                      {benefit.type.replaceAll('_', ' ')} •{' '}
+                      {benefit.taxTreatment === 'pre_tax' ? 'pre-tax' : 'post-tax'}
+                    </p>
+                  </div>
+                  <div className="row-actions">
+                    <span>{currency.format(benefit.amountPerPaycheck)}</span>
+                    <button
+                      type="button"
+                      className="ghost-button"
+                      onClick={() =>
+                        setFinancialProfile((current) => ({
+                          ...current,
+                          benefitElections: current.benefitElections.filter(
+                            (entry) => entry.id !== benefit.id,
+                          ),
+                        }))
+                      }
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+            {retirementContribution ? (
+              <div className="modal-list-row">
+                <div>
+                  <strong>{retirementContribution.accountType.replaceAll('_', ' ')}</strong>
+                  <p>
+                    {retirementContribution.contributionMode === 'percent'
+                      ? `${retirementContribution.contributionValue}% of each paycheck`
+                      : `${currency.format(
+                        retirementContribution.contributionValue,
+                      )} per paycheck`}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="ghost-button"
+                  onClick={() =>
+                    setFinancialProfile((current) => ({
+                      ...current,
+                      retirementContributions: [],
+                    }))
+                  }
+                >
+                  Remove
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </>
+      )
+    }
+
+    if (activeModal === 'essentials') {
+      const essentialExpenses = recurringTransactions.filter(
+        (transaction) => transaction.category === 'Essentials',
+      )
+
+      return (
+        <>
+          <div className="modal-header">
+            <div>
+              <p className="eyebrow">Core expenses</p>
+              <h2>Rent and essentials</h2>
+            </div>
+            <button type="button" className="ghost-button" onClick={closeModal}>
+              Close
+            </button>
+          </div>
+          <p className="empty-copy modal-intro">
+            Add the fixed costs that shape your real monthly life first. These become
+            monthly recurring expenses in the forecast.
+          </p>
+          <form className="stack-form" onSubmit={handleAddEssentialExpenses}>
+            <div className="split-row">
+              <label className="field-stack">
+                <span>Rent / mortgage</span>
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  value={essentialExpenseForm.rent}
+                  onChange={(event) =>
+                    setEssentialExpenseForm((current) => ({
+                      ...current,
+                      rent: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+              <label className="field-stack">
+                <span>Rent due day</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="31"
+                  value={essentialExpenseForm.rentDueDay}
+                  onChange={(event) =>
+                    setEssentialExpenseForm((current) => ({
+                      ...current,
+                      rentDueDay: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+            </div>
+            <div className="essential-grid">
+              {[
+                ['utilities', 'Utilities'],
+                ['phone', 'Phone'],
+                ['internet', 'Internet'],
+                ['insurance', 'Insurance'],
+                ['subscriptions', 'Subscriptions'],
+                ['groceries', 'Groceries'],
+                ['transportation', 'Transportation'],
+              ].map(([key, label]) => (
+                <label className="field-stack" key={key}>
+                  <span>{label}</span>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    value={
+                      essentialExpenseForm[
+                      key as keyof typeof essentialExpenseForm
+                      ]
+                    }
+                    onChange={(event) =>
+                      setEssentialExpenseForm((current) => ({
+                        ...current,
+                        [key]: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+              ))}
+              <label className="field-stack">
+                <span>Default due day</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="31"
+                  value={essentialExpenseForm.dueDay}
+                  onChange={(event) =>
+                    setEssentialExpenseForm((current) => ({
+                      ...current,
+                      dueDay: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+            </div>
+            <button type="submit">Add essential expenses</button>
+          </form>
+          <div className="modal-list compact-list">
+            {essentialExpenses.length === 0 ? (
+              <p className="empty-copy">
+                No essential expenses have been marked yet. Add rent and common bills
+                here so affordability checks start from real obligations.
+              </p>
+            ) : (
+              essentialExpenses.map((item) => (
+                <div className="modal-list-row" key={item.id}>
+                  <div>
+                    <strong>{item.title}</strong>
+                    <p>Monthly on day {item.dayOfMonth ?? 1}</p>
+                  </div>
+                  <div className="row-actions">
+                    <span>{currency.format(item.amount)}</span>
+                    <button
+                      type="button"
+                      className="ghost-button"
+                      onClick={() =>
+                        setRecurringTransactions((current) =>
+                          current.filter((entry) => entry.id !== item.id),
+                        )
+                      }
+                    >
+                      Remove
+                    </button>
+                  </div>
                 </div>
               ))
             )}
@@ -1712,6 +2456,29 @@ function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
                 />
               </label>
             </div>
+            <div className="split-row">
+              <input
+                type="number"
+                min="0"
+                placeholder="APR % (optional)"
+                value={debtForm.apr}
+                onChange={(event) =>
+                  setDebtForm((current) => ({ ...current, apr: event.target.value }))
+                }
+              />
+              <input
+                type="number"
+                min="0"
+                placeholder="Extra monthly payment"
+                value={debtForm.extraPayment}
+                onChange={(event) =>
+                  setDebtForm((current) => ({
+                    ...current,
+                    extraPayment: event.target.value,
+                  }))
+                }
+              />
+            </div>
             {debtForm.payoffDate ? (
               <>
                 <div className="split-row">
@@ -1782,11 +2549,11 @@ function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
                       Your plan is{' '}
                       {debtForm.payoffMode === 'amount'
                         ? `${currency.format(debtCustomPayment)} ${getCadenceLabel(
-                            debtForm.payoffCadence,
-                          )}`
+                          debtForm.payoffCadence,
+                        )}`
                         : `${Number(debtForm.payoffValue)}% of the balance each ${getCadenceLabel(
-                            debtForm.payoffCadence,
-                          )} (${currency.format(Math.ceil(debtCustomPayment))})`}{' '}
+                          debtForm.payoffCadence,
+                        )} (${currency.format(Math.ceil(debtCustomPayment))})`}{' '}
                       and would {debtProjectedRemaining <= 0 ? 'fully cover' : 'leave'}{' '}
                       {debtProjectedRemaining <= 0
                         ? currency.format(Math.abs(Math.ceil(debtProjectedRemaining)))
@@ -1811,10 +2578,10 @@ function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
                     <p>
                       {debt.payoffDate
                         ? `Need about ${currency.format(
-                            Math.ceil(
-                              getMonthlyAmountNeeded(debt.balance, debt.payoffDate),
-                            ),
-                          )} per month`
+                          Math.ceil(
+                            getMonthlyAmountNeeded(debt.balance, debt.payoffDate),
+                          ),
+                        )} per month`
                         : 'No payoff target set yet'}
                     </p>
                     {debt.payoffDate && debt.payoffCadence ? (
@@ -1830,6 +2597,25 @@ function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
                           ),
                         )}{' '}
                         {getCadenceLabel(debt.payoffCadence)}
+                      </p>
+                    ) : null}
+                    {typeof debt.apr === 'number' ? (
+                      <p>
+                        APR payoff:{' '}
+                        {(() => {
+                          const result = estimateDebtAmortization({
+                            balance: debt.balance,
+                            apr: debt.apr ?? 0,
+                            monthlyPayment:
+                              debt.minimumDue + (debt.extraPayment ?? 0),
+                          })
+
+                          return result.isPayoffPossible
+                            ? `${result.months} months, ${currency.format(
+                              Math.ceil(result.totalInterest),
+                            )} interest`
+                            : 'payment does not cover interest'
+                        })()}
                       </p>
                     ) : null}
                   </div>
@@ -2080,6 +2866,642 @@ function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
       )
     }
 
+    if (activeModal === 'emergencyFund') {
+      return (
+        <>
+          <div className="modal-header">
+            <div>
+              <p className="eyebrow">Safety net</p>
+              <h2>Emergency fund</h2>
+            </div>
+            <button type="button" className="ghost-button" onClick={closeModal}>
+              Close
+            </button>
+          </div>
+          <form className="stack-form" onSubmit={handleSaveEmergencyFund}>
+            <div className="split-row">
+              <input
+                type="number"
+                min="0"
+                placeholder="Current emergency savings"
+                value={emergencyFundForm.currentSavings}
+                onChange={(event) =>
+                  setEmergencyFundForm((current) => ({
+                    ...current,
+                    currentSavings: event.target.value,
+                  }))
+                }
+              />
+              <input
+                type="number"
+                min="0"
+                placeholder="Monthly essential expenses"
+                value={emergencyFundForm.monthlyEssentialExpenses}
+                onChange={(event) =>
+                  setEmergencyFundForm((current) => ({
+                    ...current,
+                    monthlyEssentialExpenses: event.target.value,
+                  }))
+                }
+              />
+            </div>
+            <label className="field-stack">
+              <span>Target months of expenses</span>
+              <input
+                type="number"
+                min="1"
+                value={emergencyFundForm.targetMonths}
+                onChange={(event) =>
+                  setEmergencyFundForm((current) => ({
+                    ...current,
+                    targetMonths: event.target.value,
+                  }))
+                }
+              />
+            </label>
+            <button type="submit">Save emergency fund plan</button>
+          </form>
+          <div className="status-strip estimate-strip">
+            <div>
+              <span>Target amount</span>
+              <strong>{currency.format(emergencyFundProgress.targetAmount)}</strong>
+            </div>
+            <div>
+              <span>Shortfall</span>
+              <strong>{currency.format(emergencyFundProgress.shortfall)}</strong>
+            </div>
+          </div>
+          <p className="empty-copy">
+            You are {Math.round(emergencyFundProgress.progressPercent)}% funded toward a{' '}
+            {emergencyFundPlan.targetMonths}-month emergency fund.
+          </p>
+        </>
+      )
+    }
+
+    if (activeModal === 'investments') {
+      return (
+        <>
+          <div className="modal-header">
+            <div>
+              <p className="eyebrow">Investing</p>
+              <h2>Investment growth</h2>
+            </div>
+            <button type="button" className="ghost-button" onClick={closeModal}>
+              Close
+            </button>
+          </div>
+          <form className="stack-form" onSubmit={handleAddInvestment}>
+            <input
+              type="text"
+              placeholder="Account name"
+              value={investmentForm.title}
+              onChange={(event) =>
+                setInvestmentForm((current) => ({
+                  ...current,
+                  title: event.target.value,
+                }))
+              }
+            />
+            <select
+              value={investmentForm.accountType}
+              onChange={(event) =>
+                setInvestmentForm((current) => ({
+                  ...current,
+                  accountType: event.target.value as InvestmentAccount['accountType'],
+                }))
+              }
+            >
+              <option value="brokerage">Brokerage</option>
+              <option value="traditional_401k">Traditional 401(k)</option>
+              <option value="roth_401k">Roth 401(k)</option>
+              <option value="ira">IRA</option>
+              <option value="roth_ira">Roth IRA</option>
+              <option value="hsa">HSA</option>
+              <option value="other">Other</option>
+            </select>
+            <div className="split-row">
+              <input
+                type="number"
+                min="0"
+                placeholder="Current balance"
+                value={investmentForm.balance}
+                onChange={(event) =>
+                  setInvestmentForm((current) => ({
+                    ...current,
+                    balance: event.target.value,
+                  }))
+                }
+              />
+              <input
+                type="number"
+                min="0"
+                placeholder="Monthly contribution"
+                value={investmentForm.monthlyContribution}
+                onChange={(event) =>
+                  setInvestmentForm((current) => ({
+                    ...current,
+                    monthlyContribution: event.target.value,
+                  }))
+                }
+              />
+            </div>
+            <label className="field-stack">
+              <span>Assumed annual return %</span>
+              <input
+                type="number"
+                min="0"
+                value={investmentForm.annualReturnRate}
+                onChange={(event) =>
+                  setInvestmentForm((current) => ({
+                    ...current,
+                    annualReturnRate: event.target.value,
+                  }))
+                }
+              />
+            </label>
+            <button type="submit">Add investment account</button>
+          </form>
+          <div className="status-strip estimate-strip">
+            <div>
+              <span>Current invested</span>
+              <strong>{currency.format(totalInvestmentBalance)}</strong>
+            </div>
+            <div>
+              <span>Projected in 5 years</span>
+              <strong>{currency.format(fiveYearInvestmentProjection)}</strong>
+            </div>
+          </div>
+          <div className="modal-list compact-list">
+            {investmentAccounts.length === 0 ? (
+              <p className="empty-copy">No investment accounts added yet.</p>
+            ) : (
+              investmentAccounts.map((account) => (
+                <div className="modal-list-row" key={account.id}>
+                  <div>
+                    <strong>{account.title}</strong>
+                    <p>
+                      {currency.format(account.balance)} balance •{' '}
+                      {currency.format(account.monthlyContribution)} monthly
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    onClick={() =>
+                      setInvestmentAccounts((current) =>
+                        current.filter((entry) => entry.id !== account.id),
+                      )
+                    }
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </>
+      )
+    }
+
+    if (activeModal === 'netWorth') {
+      return (
+        <>
+          <div className="modal-header">
+            <div>
+              <p className="eyebrow">Net worth</p>
+              <h2>Assets and liabilities</h2>
+            </div>
+            <button type="button" className="ghost-button" onClick={closeModal}>
+              Close
+            </button>
+          </div>
+          <form className="stack-form" onSubmit={handleAddNetWorthItem}>
+            <input
+              type="text"
+              placeholder="Item name"
+              value={netWorthForm.title}
+              onChange={(event) =>
+                setNetWorthForm((current) => ({ ...current, title: event.target.value }))
+              }
+            />
+            <div className="split-row">
+              <input
+                type="number"
+                min="0"
+                placeholder="Balance"
+                value={netWorthForm.balance}
+                onChange={(event) =>
+                  setNetWorthForm((current) => ({
+                    ...current,
+                    balance: event.target.value,
+                  }))
+                }
+              />
+              <select
+                value={netWorthForm.kind}
+                onChange={(event) =>
+                  setNetWorthForm((current) => ({
+                    ...current,
+                    kind: event.target.value as NetWorthItem['kind'],
+                  }))
+                }
+              >
+                <option value="asset">Asset</option>
+                <option value="liability">Liability</option>
+              </select>
+            </div>
+            <select
+              value={netWorthForm.category}
+              onChange={(event) =>
+                setNetWorthForm((current) => ({
+                  ...current,
+                  category: event.target.value as NetWorthItem['category'],
+                }))
+              }
+            >
+              <option value="cash">Cash</option>
+              <option value="investment">Investment</option>
+              <option value="property">Property</option>
+              <option value="vehicle">Vehicle</option>
+              <option value="debt">Debt</option>
+              <option value="other">Other</option>
+            </select>
+            <button type="submit">Add net worth item</button>
+          </form>
+          <div className="status-strip estimate-strip">
+            <div>
+              <span>Total assets</span>
+              <strong>{currency.format(netWorthSummary.totalAssets)}</strong>
+            </div>
+            <div>
+              <span>Net worth</span>
+              <strong>{currency.format(netWorthSummary.netWorth)}</strong>
+            </div>
+          </div>
+          <div className="modal-list compact-list">
+            {netWorthItems.length === 0 ? (
+              <p className="empty-copy">
+                Add assets or liabilities that are not already represented by cash,
+                investments, or tracked debts.
+              </p>
+            ) : (
+              netWorthItems.map((item) => (
+                <div className="modal-list-row" key={item.id}>
+                  <div>
+                    <strong>{item.title}</strong>
+                    <p>{item.kind} • {item.category}</p>
+                  </div>
+                  <div className="row-actions">
+                    <span>{currency.format(item.balance)}</span>
+                    <button
+                      type="button"
+                      className="ghost-button"
+                      onClick={() =>
+                        setNetWorthItems((current) =>
+                          current.filter((entry) => entry.id !== item.id),
+                        )
+                      }
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </>
+      )
+    }
+
+    if (activeModal === 'scenarios') {
+      type ScenarioComparisonRow = [
+        string,
+        {
+          baseline: number
+          scenario: number
+          delta: number
+          percentChange: number
+        },
+      ]
+      const comparisonRows: ScenarioComparisonRow[] = scenarioImpact
+        ? [
+          ['Net paycheck', scenarioImpact.netPaycheck],
+          ['Monthly cash flow', scenarioImpact.monthlyNet],
+          ['6-month cash', scenarioImpact.sixMonthCash],
+          ['Debt after 6 months', scenarioImpact.totalDebt],
+          ['Net worth', scenarioImpact.netWorth],
+          ['5-year investments', scenarioImpact.investmentFiveYearValue],
+        ]
+        : []
+
+      return (
+        <>
+          <div className="modal-header">
+            <div>
+              <p className="eyebrow">Scenario builder</p>
+              <h2>Baseline vs what-if</h2>
+            </div>
+            <button type="button" className="ghost-button" onClick={closeModal}>
+              Close
+            </button>
+          </div>
+          <form className="stack-form" onSubmit={handleSaveScenario}>
+            <input
+              type="text"
+              placeholder="Scenario name"
+              value={scenarioForm.title}
+              onChange={(event) =>
+                setScenarioForm((current) => ({ ...current, title: event.target.value }))
+              }
+            />
+            <div className="split-row">
+              <input
+                type="number"
+                placeholder="Income change %"
+                value={scenarioForm.incomeChangePercent}
+                onChange={(event) =>
+                  setScenarioForm((current) => ({
+                    ...current,
+                    incomeChangePercent: event.target.value,
+                  }))
+                }
+              />
+              <input
+                type="number"
+                placeholder="Rent increase per month"
+                value={scenarioForm.rentChange}
+                onChange={(event) =>
+                  setScenarioForm((current) => ({
+                    ...current,
+                    rentChange: event.target.value,
+                  }))
+                }
+              />
+            </div>
+            <div className="split-row">
+              <input
+                type="number"
+                placeholder="Benefit change per paycheck"
+                value={scenarioForm.benefitChangePerPaycheck}
+                onChange={(event) =>
+                  setScenarioForm((current) => ({
+                    ...current,
+                    benefitChangePerPaycheck: event.target.value,
+                  }))
+                }
+              />
+              <input
+                type="number"
+                placeholder="401(k) change %"
+                value={scenarioForm.retirementContributionChangePercent}
+                onChange={(event) =>
+                  setScenarioForm((current) => ({
+                    ...current,
+                    retirementContributionChangePercent: event.target.value,
+                  }))
+                }
+              />
+            </div>
+            <div className="split-row">
+              <input
+                type="number"
+                placeholder="Extra debt payment / month"
+                value={scenarioForm.extraDebtPayment}
+                onChange={(event) =>
+                  setScenarioForm((current) => ({
+                    ...current,
+                    extraDebtPayment: event.target.value,
+                  }))
+                }
+              />
+              <input
+                type="number"
+                placeholder="One-time purchase"
+                value={scenarioForm.oneTimePurchase}
+                onChange={(event) =>
+                  setScenarioForm((current) => ({
+                    ...current,
+                    oneTimePurchase: event.target.value,
+                  }))
+                }
+              />
+            </div>
+            <input
+              type="number"
+              placeholder="Investment contribution change / month"
+              value={scenarioForm.investmentContributionChange}
+              onChange={(event) =>
+                setScenarioForm((current) => ({
+                  ...current,
+                  investmentContributionChange: event.target.value,
+                }))
+              }
+            />
+            <button type="submit">Save scenario</button>
+          </form>
+
+          {activeScenario ? (
+            <>
+              <div className="status-strip estimate-strip">
+                <div>
+                  <span>Active scenario</span>
+                  <strong>{activeScenario.title}</strong>
+                </div>
+                <div>
+                  <span>6-month cash impact</span>
+                  <strong
+                    className={
+                      (scenarioImpact?.sixMonthCash.delta ?? 0) >= 0
+                        ? 'positive-text'
+                        : 'negative-text'
+                    }
+                  >
+                    {(scenarioImpact?.sixMonthCash.delta ?? 0) >= 0 ? '+' : '-'}
+                    {currency.format(Math.abs(scenarioImpact?.sixMonthCash.delta ?? 0))}
+                  </strong>
+                </div>
+              </div>
+              <div className="scenario-comparison-list">
+                {comparisonRows.map(([label, comparison]) => (
+                  <div className="scenario-row" key={label}>
+                    <div>
+                      <span>{label}</span>
+                      <strong>{currency.format(comparison.baseline)}</strong>
+                    </div>
+                    <div>
+                      <span>Scenario</span>
+                      <strong>{currency.format(comparison.scenario)}</strong>
+                    </div>
+                    <div>
+                      <span>Change</span>
+                      <strong
+                        className={
+                          comparison.delta >= 0 ? 'positive-text' : 'negative-text'
+                        }
+                      >
+                        {comparison.delta >= 0 ? '+' : '-'}
+                        {currency.format(Math.abs(comparison.delta))}
+                      </strong>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <p className="empty-copy">
+              Add a scenario to compare your current baseline against a possible
+              income, rent, benefit, debt, purchase, or investing change.
+            </p>
+          )}
+
+          <div className="modal-list compact-list">
+            {scenarioPlans.map((scenario) => (
+              <div className="modal-list-row" key={scenario.id}>
+                <div>
+                  <strong>{scenario.title}</strong>
+                  <p>
+                    Income {scenario.incomeChangePercent}% • Rent{' '}
+                    {currency.format(scenario.rentChange)} • Extra debt{' '}
+                    {currency.format(scenario.extraDebtPayment)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="ghost-button"
+                  onClick={() =>
+                    setScenarioPlans((current) =>
+                      current.filter((entry) => entry.id !== scenario.id),
+                    )
+                  }
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+        </>
+      )
+    }
+
+    if (activeModal === 'insights') {
+      const scenarioBars = scenarioImpact
+        ? [
+          ['Paycheck', scenarioImpact.netPaycheck.delta],
+          ['Monthly', scenarioImpact.monthlyNet.delta],
+          ['6-month', scenarioImpact.sixMonthCash.delta],
+          ['Net worth', scenarioImpact.netWorth.delta],
+        ]
+        : []
+      const maxScenarioDelta = Math.max(
+        1,
+        ...scenarioBars.map(([, value]) => Math.abs(value as number)),
+      )
+
+      return (
+        <>
+          <div className="modal-header">
+            <div>
+              <p className="eyebrow">Insights</p>
+              <h2>Trends and overviews</h2>
+            </div>
+            <button type="button" className="ghost-button" onClick={closeModal}>
+              Close
+            </button>
+          </div>
+
+          <section className="chart-panel">
+            <div className="modal-header compact-modal-header">
+              <div>
+                <p className="eyebrow">Cash trend</p>
+                <h2>Projected balance</h2>
+              </div>
+            </div>
+            <div className="bar-chart">
+              {monthlyProjection.map((point) => (
+                <div className="bar-row" key={point.month}>
+                  <span>{formatMonthLabel(parseDateKey(point.month)).slice(0, 3)}</span>
+                  <div className="bar-track">
+                    <div
+                      className={`bar-fill ${point.balance >= 0 ? 'positive' : 'negative'}`}
+                      style={{
+                        width: `${Math.max(
+                          4,
+                          Math.abs(point.balance) / maxProjectionMagnitude * 100,
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                  <strong>{currency.format(point.balance)}</strong>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="chart-panel">
+            <div className="modal-header compact-modal-header">
+              <div>
+                <p className="eyebrow">Spending</p>
+                <h2>{formatMonthLabel(currentMonth)} mix</h2>
+              </div>
+            </div>
+            <div className="bar-chart">
+              {spendingTrend.length === 0 ? (
+                <p className="empty-copy">No spending categories this month yet.</p>
+              ) : (
+                spendingTrend.map((item) => (
+                  <div className="bar-row" key={item.category}>
+                    <span>{item.category}</span>
+                    <div className="bar-track">
+                      <div
+                        className="bar-fill spending"
+                        style={{
+                          width: `${Math.max(4, item.amount / maxSpendingCategory * 100)}%`,
+                        }}
+                      />
+                    </div>
+                    <strong>{currency.format(item.amount)}</strong>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+
+          <section className="chart-panel">
+            <div className="modal-header compact-modal-header">
+              <div>
+                <p className="eyebrow">Scenario</p>
+                <h2>Impact overview</h2>
+              </div>
+            </div>
+            <div className="bar-chart">
+              {scenarioBars.length === 0 ? (
+                <p className="empty-copy">Create a scenario to see impact bars.</p>
+              ) : (
+                scenarioBars.map(([label, value]) => (
+                  <div className="bar-row" key={label as string}>
+                    <span>{label as string}</span>
+                    <div className="bar-track">
+                      <div
+                        className={`bar-fill ${(value as number) >= 0 ? 'positive' : 'negative'}`}
+                        style={{
+                          width: `${Math.max(
+                            4,
+                            Math.abs(value as number) / maxScenarioDelta * 100,
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                    <strong>{currency.format(value as number)}</strong>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+        </>
+      )
+    }
+
     return null
   }
 
@@ -2090,6 +3512,9 @@ function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
           <div className="navbar-brand">
             <p className="eyebrow">Finance tracker</p>
             <strong>{userEmail ? `Planner · ${userEmail}` : 'Planner'}</strong>
+            <span className="mode-badge">
+              {appMode === 'local' ? 'Local dev' : 'Supabase'}
+            </span>
           </div>
 
           <button
@@ -2112,31 +3537,30 @@ function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
                 exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.18, ease: 'easeOut' }}
               >
-                <button type="button" className="nav-pill" onClick={() => openModal('recurring')}>
-                  Recurring
-                </button>
-                <button type="button" className="nav-pill" onClick={() => openModal('paycheck')}>
-                  Paychecks
-                </button>
-                <button type="button" className="nav-pill" onClick={() => openModal('oneTime')}>
-                  One-time
-                </button>
-                <button type="button" className="nav-pill" onClick={() => openModal('debt')}>
-                  Debt & dues
-                </button>
-                <button type="button" className="nav-pill" onClick={() => openModal('allDebts')}>
-                  All debts
-                </button>
-                <button type="button" className="nav-pill" onClick={() => openModal('plan')}>
-                  Finance plan
-                </button>
-                <button
-                  type="button"
-                  className="nav-pill"
-                  onClick={() => openModal('purchaseGoals')}
-                >
-                  Purchase goals
-                </button>
+                {pageTabs.map((tab) => (
+                  <button
+                    type="button"
+                    className={`nav-pill ${activePage === tab.value ? 'active' : ''}`}
+                    key={tab.value}
+                    onClick={() => {
+                      setActivePage(tab.value)
+                      setNavOpen(false)
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+                {onModeChange ? (
+                  <button
+                    type="button"
+                    className="nav-pill"
+                    onClick={() =>
+                      onModeChange(appMode === 'local' ? 'supabase' : 'local')
+                    }
+                  >
+                    {appMode === 'local' ? 'Use Supabase' : 'Use local dev'}
+                  </button>
+                ) : null}
                 {onSignOut ? (
                   <button
                     type="button"
@@ -2151,31 +3575,25 @@ function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
           </AnimatePresence>
 
           <nav className="app-nav desktop-nav">
-            <button type="button" className="nav-pill" onClick={() => openModal('recurring')}>
-              Recurring
-            </button>
-            <button type="button" className="nav-pill" onClick={() => openModal('paycheck')}>
-              Paychecks
-            </button>
-            <button type="button" className="nav-pill" onClick={() => openModal('oneTime')}>
-              One-time
-            </button>
-            <button type="button" className="nav-pill" onClick={() => openModal('debt')}>
-              Debt & dues
-            </button>
-            <button type="button" className="nav-pill" onClick={() => openModal('allDebts')}>
-              All debts
-            </button>
-            <button type="button" className="nav-pill" onClick={() => openModal('plan')}>
-              Finance plan
-            </button>
-            <button
-              type="button"
-              className="nav-pill"
-              onClick={() => openModal('purchaseGoals')}
-            >
-              Purchase goals
-            </button>
+            {pageTabs.map((tab) => (
+              <button
+                type="button"
+                className={`nav-pill ${activePage === tab.value ? 'active' : ''}`}
+                key={tab.value}
+                onClick={() => setActivePage(tab.value)}
+              >
+                {tab.label}
+              </button>
+            ))}
+            {onModeChange ? (
+              <button
+                type="button"
+                className="nav-pill"
+                onClick={() => onModeChange(appMode === 'local' ? 'supabase' : 'local')}
+              >
+                {appMode === 'local' ? 'Use Supabase' : 'Use local dev'}
+              </button>
+            ) : null}
             {onSignOut ? (
               <button type="button" className="nav-pill" onClick={() => void onSignOut()}>
                 Sign out
@@ -2184,242 +3602,570 @@ function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
           </nav>
         </header>
 
-        <section className="dashboard-layout">
-          <section className="balance-card">
-            <div className="summary-row">
-              <button
-                type="button"
-                className="summary-stat summary-balance balance-trigger"
-                onClick={() => openModal('balanceEdit')}
-              >
-                <span>Available balance</span>
-                <strong>{currency.format(currentAvailableBalance)}</strong>
-              </button>
-              <div className="summary-stat">
-                <span>Projected end of {formatMonthLabel(currentMonth)}</span>
-                <strong>{currency.format(projectedMonthEndBalance)}</strong>
-              </div>
-              <div className="summary-stat">
-                <span>Projected target</span>
-                <strong>
-                  {financePlan.targetDate ? currency.format(planProjection) : 'No target yet'}
-                </strong>
-              </div>
-              <div className="summary-stat">
-                <span>Nearest purchase goal</span>
-                <strong>
-                  {nearestPurchaseGoal
-                    ? `${nearestPurchaseGoal.title} · ${currency.format(nearestPurchaseGoal.cost)}`
-                    : 'No goals yet'}
-                </strong>
-              </div>
-              <div className="debt-total-pill">
-                <span>Total debt</span>
-                <strong>{currency.format(totalDebt)}</strong>
-              </div>
-            </div>
-          </section>
-
-          <section className="workspace-grid">
-            <section className="calendar-card">
-              <div className="calendar-header">
+        <section className={`dashboard-layout ${activePage}-page`}>
+          {activePage === 'dashboard' ? (
+            <section className="cockpit-panel">
+              <div className="cockpit-hero">
                 <div>
-                  <p className="section-kicker">Calendar</p>
-                  <h2>Scheduled transactions and payments</h2>
+                  <p className="eyebrow">Financial cockpit</p>
+                  <h1>{healthLabel}</h1>
+                  <p className="hero-copy">{primaryRecommendation}</p>
                 </div>
-                <div className="month-controls">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setCurrentMonth(
-                        (current) =>
-                          new Date(current.getFullYear(), current.getMonth() - 1, 1),
-                      )
-                    }
-                  >
-                    Prev
-                  </button>
-                  <strong>{formatMonthLabel(currentMonth)}</strong>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setCurrentMonth(
-                        (current) =>
-                          new Date(current.getFullYear(), current.getMonth() + 1, 1),
-                      )
-                    }
-                  >
-                    Next
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  className="balance-hero balance-trigger"
+                  onClick={() => openModal('balanceEdit')}
+                >
+                  <span>Current cash</span>
+                  <strong>{currency.format(currentAvailableBalance)}</strong>
+                  <small>Tap to update balance</small>
+                </button>
               </div>
 
-              <div className="weekday-row">
-                {weekdayLabels.map((day) => (
-                  <span key={day}>{day}</span>
-                ))}
+              <div className="health-grid">
+                <button
+                  type="button"
+                  className="health-card"
+                  onClick={() => openModal('paycheck')}
+                >
+                  <span>Next paycheck</span>
+                  <strong>
+                    {nextPaycheck
+                      ? `${currency.format(nextPaycheck.amount)}`
+                      : 'Not scheduled'}
+                  </strong>
+                  <small>
+                    {nextPaycheck ? formatLongDate(nextPaycheck.date) : 'Add income timing'}
+                  </small>
+                </button>
+                <button
+                  type="button"
+                  className="health-card"
+                  onClick={() => openModal('incomeModel')}
+                >
+                  <span>Estimated take-home</span>
+                  <strong>
+                    {paycheckEstimate
+                      ? currency.format(paycheckEstimate.estimatedNetPaycheck)
+                      : 'Not modeled'}
+                  </strong>
+                  <small>
+                    {paycheckEstimate
+                      ? `${currency.format(paycheckEstimate.grossPerPaycheck)} gross`
+                      : 'Add salary, state, and filing status'}
+                  </small>
+                </button>
+                <div className="health-card">
+                  <span>Monthly surplus</span>
+                  <strong className={monthlyNet >= 0 ? 'positive-text' : 'negative-text'}>
+                    {monthlyNet >= 0 ? '+' : '-'}
+                    {currency.format(Math.abs(monthlyNet))}
+                  </strong>
+                  <small>{formatMonthLabel(currentMonth)} cash flow</small>
+                </div>
+                <button
+                  type="button"
+                  className="health-card"
+                  onClick={() => openModal('essentials')}
+                >
+                  <span>Essential bills</span>
+                  <strong>{currency.format(essentialMonthlyOutflow)}</strong>
+                  <small>Rent and common monthly costs</small>
+                </button>
+                <button
+                  type="button"
+                  className="health-card"
+                  onClick={() => openModal('benefits')}
+                >
+                  <span>Benefits & retirement</span>
+                  <strong>{currency.format(totalBenefitsPerPaycheck + totalRetirementPerPaycheck)}</strong>
+                  <small>Estimated per paycheck</small>
+                </button>
+                <button
+                  type="button"
+                  className="health-card"
+                  onClick={() => openModal('debt')}
+                >
+                  <span>Debt payoff</span>
+                  <strong>{currency.format(totalDebt)}</strong>
+                  <small>{debtPlans.length} tracked account{debtPlans.length === 1 ? '' : 's'}</small>
+                </button>
+                <button
+                  type="button"
+                  className="health-card"
+                  onClick={() => openModal('purchaseGoals')}
+                >
+                  <span>Nearest goal</span>
+                  <strong>{nearestPurchaseGoal ? nearestPurchaseGoal.title : 'No goals'}</strong>
+                  <small>
+                    {nearestPurchaseGoal
+                      ? `${currency.format(nearestPurchaseGoal.cost)} by ${formatLongDate(
+                        nearestPurchaseGoal.targetDate,
+                      )}`
+                      : 'Add a purchase or savings goal'}
+                  </small>
+                </button>
+                <button
+                  type="button"
+                  className="health-card"
+                  onClick={() => openModal('emergencyFund')}
+                >
+                  <span>Emergency fund</span>
+                  <strong>
+                    {currency.format(emergencyFundPlan.currentSavings)}
+                  </strong>
+                  <small>
+                    {Math.round(emergencyFundProgress.progressPercent)}% of{' '}
+                    {currency.format(emergencyFundProgress.targetAmount)} target
+                  </small>
+                </button>
+                <button
+                  type="button"
+                  className="health-card"
+                  onClick={() => openModal('investments')}
+                >
+                  <span>Investments</span>
+                  <strong>{currency.format(totalInvestmentBalance)}</strong>
+                  <small>{currency.format(fiveYearInvestmentProjection)} projected in 5 years</small>
+                </button>
+                <button
+                  type="button"
+                  className="health-card"
+                  onClick={() => openModal('netWorth')}
+                >
+                  <span>Net worth</span>
+                  <strong>{currency.format(netWorthSummary.netWorth)}</strong>
+                  <small>
+                    {currency.format(netWorthSummary.totalAssets)} assets •{' '}
+                    {currency.format(netWorthSummary.totalLiabilities)} liabilities
+                  </small>
+                </button>
+                <button
+                  type="button"
+                  className="health-card"
+                  onClick={() => openModal('scenarios')}
+                >
+                  <span>Scenario impact</span>
+                  <strong>
+                    {scenarioImpact
+                      ? `${scenarioImpact.sixMonthCash.delta >= 0 ? '+' : '-'}${currency.format(
+                        Math.abs(scenarioImpact.sixMonthCash.delta),
+                      )}`
+                      : 'No scenario'}
+                  </strong>
+                  <small>{activeScenario ? activeScenario.title : 'Compare a what-if change'}</small>
+                </button>
+                <button
+                  type="button"
+                  className="health-card"
+                  onClick={() => openModal('insights')}
+                >
+                  <span>Trend views</span>
+                  <strong>{monthlyProjection.length} mo</strong>
+                  <small>Cash, spending, and scenario charts</small>
+                </button>
+                <button
+                  type="button"
+                  className="health-card"
+                  onClick={() => openModal('plan')}
+                >
+                  <span>6-month projection</span>
+                  <strong>{currency.format(sixMonthProjection)}</strong>
+                  <small>{financePlan.targetDate ? 'Target plan included' : 'No target set'}</small>
+                </button>
               </div>
 
-              <div className="calendar-grid">
-                {calendarDays.map((date, index) => {
-                  if (!date) {
-                    return <div key={`empty-${index}`} className="day-cell empty-day" />
-                  }
-
-                  const dateKey = formatDateKey(date)
-                  const dayItems = allOccurrences.filter(
-                    (transaction) => transaction.date === dateKey,
-                  )
-                  const dayNet = dayItems.reduce(
-                    (sum, transaction) =>
-                      sum + getSignedAmount(transaction.amount, transaction.type),
-                    0,
-                  )
-                  const dayEndBalance = projectedBalance(dateKey)
-                  const previewTitles = dayItems
-                    .slice(0, 2)
-                    .map((item) => item.title)
-                    .join(' • ')
-                  const isSelected = dateKey === selectedDateKey
-                  const isToday = dateKey === todayKey
-
-                  return (
-                    <button
-                      type="button"
-                      key={dateKey}
-                      className={`day-cell ${isSelected ? 'selected-day' : ''} ${
-                        isToday ? 'today-cell' : ''
-                      }`}
-                      onClick={() => openDay(dateKey)}
-                    >
-                      <span className="day-number">{date.getDate()}</span>
-                      <div className="indicator-row">
-                        {dayItems.slice(0, 4).map((item) => (
-                          <span
-                            key={item.id}
-                            className={`indicator-dot ${item.type}`}
-                            aria-hidden="true"
-                          />
-                        ))}
-                      </div>
-                      <span className={`day-net ${dayNet >= 0 ? 'positive' : 'negative'}`}>
-                        {dayItems.length > 0
-                          ? `${dayNet >= 0 ? '+' : '-'}${currency.format(Math.abs(dayNet))}`
-                          : ''}
-                      </span>
-                      <span className="day-balance">
-                        {dayItems.length > 0
-                          ? `End day: ${currency.format(dayEndBalance)}`
-                          : ''}
-                      </span>
-                      <span className="day-preview">
-                        {dayItems.length > 0
-                          ? dayItems.length > 2
-                            ? `${previewTitles} +${dayItems.length - 2} more`
-                            : previewTitles
-                          : ''}
-                      </span>
-                    </button>
-                  )
-                })}
+              <div className="quick-actions" aria-label="Planning shortcuts">
+                <button type="button" onClick={() => openModal('incomeModel')}>
+                  Model paycheck
+                </button>
+                <button type="button" onClick={() => openModal('essentials')}>
+                  Add rent & bills
+                </button>
+                <button type="button" onClick={() => openModal('oneTime')}>
+                  Schedule expense
+                </button>
+                <button type="button" onClick={() => openModal('scenarios')}>
+                  Scenarios
+                </button>
               </div>
             </section>
+          ) : null}
 
-            <aside className="upcoming-card">
-              <div className="sidebar-section">
-                <div className="sidebar-header">
+          {activePage === 'dashboard' || activePage === 'calendar' ? (
+            <section className="workspace-grid">
+              <section className="calendar-card">
+                <div className="calendar-header">
                   <div>
-                    <p className="section-kicker">Upcoming</p>
-                    <h2>Next scheduled transactions</h2>
+                    <p className="section-kicker">Calendar</p>
+                    <h2>Scheduled transactions and payments</h2>
+                  </div>
+                  <div className="month-controls">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCurrentMonth(
+                          (current) =>
+                            new Date(current.getFullYear(), current.getMonth() - 1, 1),
+                        )
+                      }
+                    >
+                      Prev
+                    </button>
+                    <strong>{formatMonthLabel(currentMonth)}</strong>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCurrentMonth(
+                          (current) =>
+                            new Date(current.getFullYear(), current.getMonth() + 1, 1),
+                        )
+                      }
+                    >
+                      Next
+                    </button>
                   </div>
                 </div>
 
-                <div className="upcoming-list">
-                  {upcomingTransactions.length === 0 ? (
-                    <p className="empty-copy">No scheduled transactions yet.</p>
-                  ) : (
-                    upcomingTransactions.map((transaction) => (
+                <div className="weekday-row">
+                  {weekdayLabels.map((day) => (
+                    <span key={day}>{day}</span>
+                  ))}
+                </div>
+
+                <div className="calendar-grid">
+                  {calendarDays.map((date, index) => {
+                    if (!date) {
+                      return <div key={`empty-${index}`} className="day-cell empty-day" />
+                    }
+
+                    const dateKey = formatDateKey(date)
+                    const dayItems = allOccurrences.filter(
+                      (transaction) => transaction.date === dateKey,
+                    )
+                    const dayNet = dayItems.reduce(
+                      (sum, transaction) =>
+                        sum + getSignedAmount(transaction.amount, transaction.type),
+                      0,
+                    )
+                    const dayEndBalance = projectedBalance(dateKey)
+                    const previewTitles = dayItems
+                      .slice(0, 2)
+                      .map((item) => item.title)
+                      .join(' • ')
+                    const isSelected = dateKey === selectedDateKey
+                    const isToday = dateKey === todayKey
+
+                    return (
                       <button
                         type="button"
-                        key={transaction.id}
-                        className="upcoming-row"
-                        onClick={() => openDay(transaction.date)}
+                        key={dateKey}
+                        className={`day-cell ${isSelected ? 'selected-day' : ''} ${isToday ? 'today-cell' : ''
+                          }`}
+                        onClick={() => openDay(dateKey)}
                       >
-                        <div>
-                          <strong>{transaction.title}</strong>
-                          <p>{formatLongDate(transaction.date)}</p>
+                        <span className="day-number">{date.getDate()}</span>
+                        <div className="indicator-row">
+                          {dayItems.slice(0, 4).map((item) => (
+                            <span
+                              key={item.id}
+                              className={`indicator-dot ${item.type}`}
+                              aria-hidden="true"
+                            />
+                          ))}
                         </div>
-                        <div className="upcoming-amount">
-                          <span
-                            className={`day-net ${
-                              getSignedAmount(transaction.amount, transaction.type) >= 0
+                        <span className={`day-net ${dayNet >= 0 ? 'positive' : 'negative'}`}>
+                          {dayItems.length > 0
+                            ? `${dayNet >= 0 ? '+' : '-'}${currency.format(Math.abs(dayNet))}`
+                            : ''}
+                        </span>
+                        <span className="day-balance">
+                          {dayItems.length > 0
+                            ? `End day: ${currency.format(dayEndBalance)}`
+                            : ''}
+                        </span>
+                        <span className="day-preview">
+                          {dayItems.length > 0
+                            ? dayItems.length > 2
+                              ? `${previewTitles} +${dayItems.length - 2} more`
+                              : previewTitles
+                            : ''}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </section>
+
+              <aside className="upcoming-card">
+                <div className="sidebar-section">
+                  <div className="sidebar-header">
+                    <div>
+                      <p className="section-kicker">Upcoming</p>
+                      <h2>Next scheduled transactions</h2>
+                    </div>
+                  </div>
+
+                  <div className="upcoming-list">
+                    {upcomingTransactions.length === 0 ? (
+                      <p className="empty-copy">No scheduled transactions yet.</p>
+                    ) : (
+                      upcomingTransactions.map((transaction) => (
+                        <button
+                          type="button"
+                          key={transaction.id}
+                          className="upcoming-row"
+                          onClick={() => openDay(transaction.date)}
+                        >
+                          <div>
+                            <strong>{transaction.title}</strong>
+                            <p>{formatLongDate(transaction.date)}</p>
+                          </div>
+                          <div className="upcoming-amount">
+                            <span
+                              className={`day-net ${getSignedAmount(transaction.amount, transaction.type) >= 0
                                 ? 'positive'
                                 : 'negative'
-                            }`}
-                          >
-                            {getSignedAmount(transaction.amount, transaction.type) >= 0
-                              ? '+'
-                              : '-'}
-                            {currency.format(transaction.amount)}
-                          </span>
-                          <p>{transaction.type}</p>
-                        </div>
-                      </button>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              <div className="sidebar-section">
-                <div className="sidebar-header">
-                  <div>
-                    <p className="section-kicker">Debt</p>
-                    <h2>What you owe</h2>
+                                }`}
+                            >
+                              {getSignedAmount(transaction.amount, transaction.type) >= 0
+                                ? '+'
+                                : '-'}
+                              {currency.format(transaction.amount)}
+                            </span>
+                            <p>{transaction.type}</p>
+                          </div>
+                        </button>
+                      ))
+                    )}
                   </div>
                 </div>
 
-                <div className="debt-summary-list">
-                  {debtPlans.length === 0 ? (
-                    <p className="empty-copy">No debts tracked yet.</p>
-                  ) : (
-                    debtPlans.map((debt) => (
-                      <div className="debt-summary-row" key={debt.id}>
-                        <div>
-                          <strong>{debt.title}</strong>
-                          <p>Due {formatLongDate(debt.dueDate)}</p>
+                <div className="sidebar-section">
+                  <div className="sidebar-header">
+                    <div>
+                      <p className="section-kicker">Debt</p>
+                      <h2>What you owe</h2>
+                    </div>
+                  </div>
+
+                  <div className="debt-summary-list">
+                    {debtPlans.length === 0 ? (
+                      <p className="empty-copy">No debts tracked yet.</p>
+                    ) : (
+                      debtPlans.map((debt) => (
+                        <div className="debt-summary-row" key={debt.id}>
+                          <div>
+                            <strong>{debt.title}</strong>
+                            <p>Due {formatLongDate(debt.dueDate)}</p>
+                          </div>
+                          <div className="upcoming-amount">
+                            <span className="day-net negative">
+                              -{currency.format(debt.balance)}
+                            </span>
+                            <p>
+                              {debt.payoffDate
+                                ? `Target ${formatLongDate(debt.payoffDate)}`
+                                : 'No payoff target'}
+                            </p>
+                            {debt.payoffDate && debt.payoffCadence ? (
+                              <p>
+                                {currency.format(
+                                  Math.ceil(
+                                    getRecommendedPayment(
+                                      debt.balance,
+                                      debt.payoffDate,
+                                      debt.payoffCadence,
+                                      today,
+                                    ),
+                                  ),
+                                )}{' '}
+                                {getCadenceLabel(debt.payoffCadence)}
+                              </p>
+                            ) : null}
+                          </div>
                         </div>
-                        <div className="upcoming-amount">
-                          <span className="day-net negative">
-                            -{currency.format(debt.balance)}
-                          </span>
-                    <p>
-                      {debt.payoffDate
-                        ? `Target ${formatLongDate(debt.payoffDate)}`
-                        : 'No payoff target'}
-                    </p>
-                    {debt.payoffDate && debt.payoffCadence ? (
-                      <p>
-                        {currency.format(
-                          Math.ceil(
-                            getRecommendedPayment(
-                              debt.balance,
-                              debt.payoffDate,
-                              debt.payoffCadence,
-                              today,
-                            ),
-                          ),
-                        )}{' '}
-                        {getCadenceLabel(debt.payoffCadence)}
-                      </p>
-                    ) : null}
+                      ))
+                    )}
                   </div>
                 </div>
-              ))
-                  )}
+              </aside>
+            </section>
+          ) : null}
+
+          {activePage === 'cashFlow' ? (
+            <section className="page-panel">
+              <div className="page-header">
+                <div>
+                  <p className="eyebrow">Cash flow</p>
+                  <h1>Income, bills, and spending</h1>
+                  <p className="hero-copy">
+                    Manage the recurring money movement that feeds the calendar forecast.
+                  </p>
                 </div>
               </div>
-            </aside>
-          </section>
+              <div className="page-action-grid">
+                <button type="button" className="action-card" onClick={() => openModal('incomeModel')}>
+                  <span>Paycheck model</span>
+                  <strong>
+                    {paycheckEstimate
+                      ? currency.format(paycheckEstimate.estimatedNetPaycheck)
+                      : 'Not modeled'}
+                  </strong>
+                  <small>Estimate take-home pay from income, taxes, and deductions.</small>
+                </button>
+                <button type="button" className="action-card" onClick={() => openModal('paycheck')}>
+                  <span>Paycheck schedule</span>
+                  <strong>{paycheckRules.length}</strong>
+                  <small>Weekly, biweekly, or monthly income events.</small>
+                </button>
+                <button type="button" className="action-card" onClick={() => openModal('essentials')}>
+                  <span>Rent & essentials</span>
+                  <strong>{currency.format(essentialMonthlyOutflow)}</strong>
+                  <small>Rent, utilities, groceries, insurance, and core bills.</small>
+                </button>
+                <button type="button" className="action-card" onClick={() => openModal('recurring')}>
+                  <span>Recurring bills</span>
+                  <strong>{recurringTransactions.length}</strong>
+                  <small>Subscriptions, transfers, debt payments, and other repeats.</small>
+                </button>
+                <button type="button" className="action-card" onClick={() => openModal('oneTime')}>
+                  <span>One-time items</span>
+                  <strong>{scheduledTransactions.length}</strong>
+                  <small>Irregular purchases, reimbursements, or one-off expenses.</small>
+                </button>
+                <button type="button" className="action-card" onClick={() => openModal('benefits')}>
+                  <span>Benefits</span>
+                  <strong>{currency.format(totalBenefitsPerPaycheck)}</strong>
+                  <small>Per-paycheck insurance, HSA/FSA, and deductions.</small>
+                </button>
+              </div>
+            </section>
+          ) : null}
+
+          {activePage === 'planning' ? (
+            <section className="page-panel">
+              <div className="page-header">
+                <div>
+                  <p className="eyebrow">Planning</p>
+                  <h1>Debt, goals, emergency fund, and net worth</h1>
+                  <p className="hero-copy">
+                    Longer-term planning tools live here, separate from day-to-day scheduling.
+                  </p>
+                </div>
+              </div>
+              <div className="page-action-grid">
+                <button type="button" className="action-card" onClick={() => openModal('debt')}>
+                  <span>Debt payoff</span>
+                  <strong>{currency.format(totalDebt)}</strong>
+                  <small>APR, minimums, extra payments, and payoff estimates.</small>
+                </button>
+                <button type="button" className="action-card" onClick={() => openModal('emergencyFund')}>
+                  <span>Emergency fund</span>
+                  <strong>{Math.round(emergencyFundProgress.progressPercent)}%</strong>
+                  <small>{currency.format(emergencyFundProgress.shortfall)} left to target.</small>
+                </button>
+                <button type="button" className="action-card" onClick={() => openModal('purchaseGoals')}>
+                  <span>Purchase goals</span>
+                  <strong>{purchaseGoals.length}</strong>
+                  <small>Planned purchases and recommended saving cadence.</small>
+                </button>
+                <button type="button" className="action-card" onClick={() => openModal('investments')}>
+                  <span>Investments</span>
+                  <strong>{currency.format(totalInvestmentBalance)}</strong>
+                  <small>{currency.format(fiveYearInvestmentProjection)} projected in 5 years.</small>
+                </button>
+                <button type="button" className="action-card" onClick={() => openModal('netWorth')}>
+                  <span>Net worth</span>
+                  <strong>{currency.format(netWorthSummary.netWorth)}</strong>
+                  <small>Assets, liabilities, cash, and investment balances.</small>
+                </button>
+                <button type="button" className="action-card" onClick={() => openModal('plan')}>
+                  <span>Financial target</span>
+                  <strong>{financePlan.targetDate ? currency.format(planProjection) : 'No target'}</strong>
+                  <small>Compare your projected balance against a target.</small>
+                </button>
+              </div>
+            </section>
+          ) : null}
+
+          {activePage === 'scenarios' ? (
+            <section className="page-panel">
+              <div className="page-header">
+                <div>
+                  <p className="eyebrow">Scenarios</p>
+                  <h1>What-if planning</h1>
+                  <p className="hero-copy">
+                    Compare your baseline against possible changes before you commit.
+                  </p>
+                </div>
+                <button type="button" className="primary-action" onClick={() => openModal('scenarios')}>
+                  Build scenario
+                </button>
+              </div>
+              <div className="page-action-grid">
+                <div className="action-card static-card">
+                  <span>Active scenario</span>
+                  <strong>{activeScenario ? activeScenario.title : 'None yet'}</strong>
+                  <small>Model income, rent, benefits, debt, purchases, and investing.</small>
+                </div>
+                <div className="action-card static-card">
+                  <span>6-month cash impact</span>
+                  <strong className={(scenarioImpact?.sixMonthCash.delta ?? 0) >= 0 ? 'positive-text' : 'negative-text'}>
+                    {scenarioImpact
+                      ? `${scenarioImpact.sixMonthCash.delta >= 0 ? '+' : '-'}${currency.format(
+                        Math.abs(scenarioImpact.sixMonthCash.delta),
+                      )}`
+                      : '--'}
+                  </strong>
+                  <small>Compared with your current baseline.</small>
+                </div>
+                <button type="button" className="action-card" onClick={() => openModal('insights')}>
+                  <span>Scenario charts</span>
+                  <strong>View impact</strong>
+                  <small>See bars for paycheck, monthly cash, and net worth changes.</small>
+                </button>
+              </div>
+            </section>
+          ) : null}
+
+          {activePage === 'insights' ? (
+            <section className="page-panel">
+              <div className="page-header">
+                <div>
+                  <p className="eyebrow">Insights</p>
+                  <h1>Trends and overviews</h1>
+                  <p className="hero-copy">
+                    Calendar stays primary, but these views make patterns easier to scan.
+                  </p>
+                </div>
+                <button type="button" className="primary-action" onClick={() => openModal('insights')}>
+                  Open charts
+                </button>
+              </div>
+              <div className="page-action-grid">
+                <div className="action-card static-card">
+                  <span>6-month cash</span>
+                  <strong>{currency.format(sixMonthProjection)}</strong>
+                  <small>Projected from your current scheduled activity.</small>
+                </div>
+                <div className="action-card static-card">
+                  <span>Top spending group</span>
+                  <strong>{spendingTrend[0]?.category ?? 'None yet'}</strong>
+                  <small>
+                    {spendingTrend[0]
+                      ? currency.format(spendingTrend[0].amount)
+                      : 'Add expenses to see category trends.'}
+                  </small>
+                </div>
+                <div className="action-card static-card">
+                  <span>Net worth</span>
+                  <strong>{currency.format(netWorthSummary.netWorth)}</strong>
+                  <small>Assets minus liabilities.</small>
+                </div>
+              </div>
+            </section>
+          ) : null}
         </section>
       </main>
 
