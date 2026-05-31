@@ -82,6 +82,7 @@ type ModalView =
 
 type PageView =
   | 'dashboard'
+  | 'calendar'
   | 'cashFlow'
   | 'planning'
   | 'scenarios'

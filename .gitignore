@@ -8,9 +8,14 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+node_modules 2
 dist
+dist 2
 dist-ssr
 *.local
+
+# Accidental duplicate folders created by local copy/sync tools
+* 2/
 
 # Editor directories and files
 .vscode/*
