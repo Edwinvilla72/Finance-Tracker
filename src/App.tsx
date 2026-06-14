@@ -5,7 +5,7 @@ import AuthPage from './pages/AuthPage'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 import './App.css'
 
-// debug mode to use without reliance on Supabase
+// debug mode to use without reliance on Supabase (not necessary)
 type AppMode = 'local' | 'supabase'
 
 const APP_MODE_STORAGE_KEY = 'finance-tracker-app-mode'

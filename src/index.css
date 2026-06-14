@@ -2,23 +2,29 @@
   font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color: #1f2937;
+  color: #132238;
   background:
-    radial-gradient(circle at top left, rgba(173, 188, 214, 0.25), transparent 24rem),
-    linear-gradient(180deg, #f7f6f2 0%, #f1efe7 100%);
+    radial-gradient(circle at top left, rgba(91, 168, 214, 0.26), transparent 24rem),
+    radial-gradient(circle at top right, rgba(255, 141, 92, 0.22), transparent 22rem),
+    linear-gradient(180deg, #edf7ff 0%, #e7eefb 48%, #eef6f2 100%);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  --text: #1f2937;
-  --muted-strong: #5b6575;
-  --muted: #788190;
-  --surface: rgba(255, 255, 255, 0.78);
-  --surface-alt: #f4f1e8;
-  --border: rgba(31, 41, 55, 0.09);
-  --accent-soft: rgba(85, 107, 138, 0.28);
-  --shadow: 0 20px 40px rgba(64, 72, 87, 0.08);
+  --text: #132238;
+  --muted-strong: #4f647f;
+  --muted: #7186a1;
+  --surface: rgba(247, 251, 255, 0.82);
+  --surface-alt: rgba(227, 239, 255, 0.78);
+  --border: rgba(34, 65, 102, 0.12);
+  --accent: #176087;
+  --accent-strong: #0f4668;
+  --accent-soft: rgba(71, 136, 204, 0.18);
+  --accent-warm: #f28b62;
+  --positive: #2f8a6f;
+  --negative: #cb5f52;
+  --shadow: 0 22px 54px rgba(41, 70, 112, 0.12);
 }
 
 * {

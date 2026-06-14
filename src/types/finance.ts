@@ -74,6 +74,7 @@ export type CalendarOccurrence = {
 
 export type PersistedState = {
   currentBalanceInput: string
+  bankBalanceSource: 'manual' | 'linked'
   scheduledTransactions: ScheduledTransaction[]
   recurringTransactions: RecurringTransaction[]
   paycheckRules: PaycheckRule[]

@@ -28,6 +28,7 @@ export function savePersistedState(payload: PersistedState) {
 export function getDefaultPersistedState(): PersistedState {
   return {
     currentBalanceInput: '',
+    bankBalanceSource: 'manual',
     scheduledTransactions: [],
     recurringTransactions: [],
     paycheckRules: [],
@@ -62,6 +63,7 @@ export function normalizePersistedState(
 
   return {
     currentBalanceInput: value?.currentBalanceInput ?? defaults.currentBalanceInput,
+    bankBalanceSource: value?.bankBalanceSource ?? defaults.bankBalanceSource,
     scheduledTransactions: value?.scheduledTransactions ?? defaults.scheduledTransactions,
     recurringTransactions: value?.recurringTransactions ?? defaults.recurringTransactions,
     paycheckRules: value?.paycheckRules ?? defaults.paycheckRules,
@@ -117,12 +119,17 @@ export function mergePersistedStates(
   remote?: Partial<PersistedState> | null,
   local?: Partial<PersistedState> | null,
 ): PersistedState {
+  const defaults = getDefaultPersistedState()
   const remoteState = normalizePersistedState(remote)
   const localState = normalizePersistedState(local)
 
   return {
     currentBalanceInput:
       localState.currentBalanceInput || remoteState.currentBalanceInput,
+    bankBalanceSource:
+      localState.bankBalanceSource !== defaults.bankBalanceSource
+        ? localState.bankBalanceSource
+        : remoteState.bankBalanceSource,
     scheduledTransactions: mergeById(
       remoteState.scheduledTransactions,
       localState.scheduledTransactions,
