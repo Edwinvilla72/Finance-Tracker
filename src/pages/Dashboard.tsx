@@ -84,7 +84,6 @@ type DamageSequence = {
   phase: DamageSequencePhase
   previousBalance: number
   title: string
-  todaySpent: number
 }
 
 function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: DashboardProps) {
@@ -298,9 +297,6 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
   const projectedBalance = (targetDateKey: string) =>
     projectBalance(currentBalance, allOccurrences, todayKey, targetDateKey)
   const currentAvailableBalance = projectedBalance(todayKey)
-  const todayExpenseTotal = allOccurrences
-    .filter((transaction) => transaction.date === todayKey && transaction.type === 'expense')
-    .reduce((sum, transaction) => sum + transaction.amount, 0)
   const selectedDayBalance = projectedBalance(selectedDateKey)
   const totalDebt = debtPlans.reduce((sum, debt) => sum + debt.balance, 0)
   const totalInvestmentBalance = investmentAccounts.reduce(
@@ -791,7 +787,7 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
     setActiveModal(null)
   }
 
-  function triggerDamageSequence(title: string, amount: number, updatedTodaySpent: number) {
+  function triggerDamageSequence(title: string, amount: number) {
     const id = Date.now()
 
     damageTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId))
@@ -803,7 +799,6 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
       phase: 'approach',
       previousBalance: currentAvailableBalance,
       title,
-      todaySpent: updatedTodaySpent,
     })
 
     damageTimeoutsRef.current = [
@@ -955,7 +950,7 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
     ])
 
     if (isCurrentDayExpense) {
-      triggerDamageSequence(dayForm.title, amount, todayExpenseTotal + amount)
+      triggerDamageSequence(dayForm.title, amount)
     }
 
     setDayForm({ title: '', amount: '', type: 'expense' })
@@ -990,7 +985,7 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
     ])
 
     if (isCurrentDayExpense) {
-      triggerDamageSequence(oneTimeForm.title, amount, todayExpenseTotal + amount)
+      triggerDamageSequence(oneTimeForm.title, amount)
     }
 
     setOneTimeForm({
@@ -1584,15 +1579,21 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
           >
             <div className="damage-overlay-backdrop" />
             <div className="damage-overlay-content">
-              <p className="damage-overlay-label">Today&apos;s damage</p>
-              <strong className="damage-overlay-total">
-                {currency.format(damageSequence.todaySpent)}
-              </strong>
-              <p className="damage-overlay-subtitle">{damageSequence.title}</p>
-              <div className="damage-projectile">
-                <span>-{currency.format(damageSequence.amount)}</span>
+              <div className="damage-stage">
+                <p className="damage-overlay-label">Money available</p>
+                <strong className="damage-overlay-total">
+                  {currency.format(
+                    damageSequence.phase === 'resolve'
+                      ? damageSequence.nextBalance
+                      : damageSequence.previousBalance,
+                  )}
+                </strong>
+                <p className="damage-overlay-subtitle">{damageSequence.title}</p>
+                <div className="damage-projectile">
+                  <span>-{currency.format(damageSequence.amount)}</span>
+                </div>
+                <div className="damage-impact-ring" />
               </div>
-              <div className="damage-impact-ring" />
             </div>
           </motion.div>
         ) : null}
