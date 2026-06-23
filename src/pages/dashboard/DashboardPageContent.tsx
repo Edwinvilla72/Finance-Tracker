@@ -34,8 +34,9 @@ type DashboardPageContentProps = {
   activePage: PageView
   activeScenario?: { title: string } | null
   allOccurrences: CalendarOccurrence[]
+  balanceDisplayValue: number
+  balanceHeroPhase: 'approach' | 'impact' | 'resolve' | null
   calendarDays: Array<Date | null>
-  currentAvailableBalance: number
   currentCashSourceLabel: string
   currentMonth: Date
   debtPlans: DebtPlan[]
@@ -91,8 +92,9 @@ export function DashboardPageContent({
   activePage,
   activeScenario,
   allOccurrences,
+  balanceDisplayValue,
+  balanceHeroPhase,
   calendarDays,
-  currentAvailableBalance,
   currentCashSourceLabel,
   currentMonth,
   debtPlans,
@@ -144,11 +146,13 @@ export function DashboardPageContent({
             </div>
             <button
               type="button"
-              className="balance-hero balance-trigger"
+              className={`balance-hero balance-trigger ${
+                balanceHeroPhase ? `balance-hero-${balanceHeroPhase}` : ''
+              }`}
               onClick={() => openModal('balanceEdit')}
             >
               <span>Current cash</span>
-              <strong>{currency.format(currentAvailableBalance)}</strong>
+              <strong>{currency.format(balanceDisplayValue)}</strong>
               <small>{currentCashSourceLabel}</small>
             </button>
           </div>

@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   buildCalendarOccurrences,
   getCalendarDays,
@@ -65,6 +65,7 @@ import {
   parseDateKey,
   startOfMonth,
 } from '../utils/dates'
+import { currency } from '../utils/currency'
 
 type DashboardProps = {
   userId?: string
@@ -72,6 +73,18 @@ type DashboardProps = {
   appMode?: 'local' | 'supabase'
   onModeChange?: (mode: 'local' | 'supabase') => void
   onSignOut?: () => Promise<void> | void
+}
+
+type DamageSequencePhase = 'approach' | 'impact' | 'resolve'
+
+type DamageSequence = {
+  id: number
+  amount: number
+  nextBalance: number
+  phase: DamageSequencePhase
+  previousBalance: number
+  title: string
+  todaySpent: number
 }
 
 function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: DashboardProps) {
@@ -244,6 +257,8 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
     targetDate: '',
     savingsCadence: 'monthly' as 'weekly' | 'biweekly' | 'monthly',
   })
+  const [damageSequence, setDamageSequence] = useState<DamageSequence | null>(null)
+  const damageTimeoutsRef = useRef<number[]>([])
 
   const allOccurrences = useMemo(
     () =>
@@ -283,6 +298,9 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
   const projectedBalance = (targetDateKey: string) =>
     projectBalance(currentBalance, allOccurrences, todayKey, targetDateKey)
   const currentAvailableBalance = projectedBalance(todayKey)
+  const todayExpenseTotal = allOccurrences
+    .filter((transaction) => transaction.date === todayKey && transaction.type === 'expense')
+    .reduce((sum, transaction) => sum + transaction.amount, 0)
   const selectedDayBalance = projectedBalance(selectedDateKey)
   const totalDebt = debtPlans.reduce((sum, debt) => sum + debt.balance, 0)
   const totalInvestmentBalance = investmentAccounts.reduce(
@@ -691,6 +709,13 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
     userId,
   ])
 
+  useEffect(
+    () => () => {
+      damageTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId))
+    },
+    [],
+  )
+
   function getPurchaseGoalProjection(goal: PurchaseGoal) {
     const projectedOnTarget = projectedBalance(goal.targetDate)
     const afterPurchase = projectedOnTarget - goal.cost
@@ -764,6 +789,38 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
 
   function closeModal() {
     setActiveModal(null)
+  }
+
+  function triggerDamageSequence(title: string, amount: number, updatedTodaySpent: number) {
+    const id = Date.now()
+
+    damageTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId))
+
+    setDamageSequence({
+      id,
+      amount,
+      nextBalance: currentAvailableBalance - amount,
+      phase: 'approach',
+      previousBalance: currentAvailableBalance,
+      title,
+      todaySpent: updatedTodaySpent,
+    })
+
+    damageTimeoutsRef.current = [
+      window.setTimeout(() => {
+        setDamageSequence((current) =>
+          current?.id === id ? { ...current, phase: 'impact' } : current,
+        )
+      }, 900),
+      window.setTimeout(() => {
+        setDamageSequence((current) =>
+          current?.id === id ? { ...current, phase: 'resolve' } : current,
+        )
+      }, 1220),
+      window.setTimeout(() => {
+        setDamageSequence((current) => (current?.id === id ? null : current))
+      }, 2400),
+    ]
   }
 
   async function handleConnectBank() {
@@ -882,17 +939,24 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
       return
     }
 
+    const amount = Number(dayForm.amount)
+    const isCurrentDayExpense = selectedDateKey === todayKey && dayForm.type === 'expense'
+
     setScheduledTransactions((current) => [
       ...current,
       {
         id: Date.now(),
         title: dayForm.title,
-        amount: Number(dayForm.amount),
+        amount,
         date: selectedDateKey,
         type: dayForm.type,
         category: 'General',
       },
     ])
+
+    if (isCurrentDayExpense) {
+      triggerDamageSequence(dayForm.title, amount, todayExpenseTotal + amount)
+    }
 
     setDayForm({ title: '', amount: '', type: 'expense' })
   }
@@ -910,17 +974,24 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
       return
     }
 
+    const amount = Number(oneTimeForm.amount)
+    const isCurrentDayExpense = oneTimeForm.date === todayKey && oneTimeForm.type === 'expense'
+
     setScheduledTransactions((current) => [
       ...current,
       {
         id: Date.now(),
         title: oneTimeForm.title,
-        amount: Number(oneTimeForm.amount),
+        amount,
         date: oneTimeForm.date,
         type: oneTimeForm.type,
         category: oneTimeForm.category,
       },
     ])
+
+    if (isCurrentDayExpense) {
+      triggerDamageSequence(oneTimeForm.title, amount, todayExpenseTotal + amount)
+    }
 
     setOneTimeForm({
       title: '',
@@ -1425,7 +1496,11 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
 
   return (
     <>
-      <main className="planner-shell">
+      <main
+        className={`planner-shell ${
+          damageSequence?.phase === 'impact' ? 'planner-shell-damage-shake' : ''
+        }`}
+      >
         <DashboardHeader
           activePage={activePage}
           appMode={appMode}
@@ -1444,8 +1519,15 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
           activePage={activePage}
           activeScenario={activeScenario}
           allOccurrences={allOccurrences}
+          balanceDisplayValue={
+            damageSequence
+              ? damageSequence.phase === 'resolve'
+                ? damageSequence.nextBalance
+                : damageSequence.previousBalance
+              : currentAvailableBalance
+          }
+          balanceHeroPhase={damageSequence?.phase ?? null}
           calendarDays={calendarDays}
-          currentAvailableBalance={currentAvailableBalance}
           currentCashSourceLabel={
             usingLinkedBalance
               ? 'Using linked bank balances'
@@ -1490,6 +1572,31 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
           upcomingTransactions={upcomingTransactions}
         />
       </main>
+
+      <AnimatePresence>
+        {damageSequence ? (
+          <motion.div
+            className={`damage-overlay damage-overlay-${damageSequence.phase}`}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+          >
+            <div className="damage-overlay-backdrop" />
+            <div className="damage-overlay-content">
+              <p className="damage-overlay-label">Today&apos;s damage</p>
+              <strong className="damage-overlay-total">
+                {currency.format(damageSequence.todaySpent)}
+              </strong>
+              <p className="damage-overlay-subtitle">{damageSequence.title}</p>
+              <div className="damage-projectile">
+                <span>-{currency.format(damageSequence.amount)}</span>
+              </div>
+              <div className="damage-impact-ring" />
+            </div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
 
       <AnimatePresence>
         {activeModal ? (
