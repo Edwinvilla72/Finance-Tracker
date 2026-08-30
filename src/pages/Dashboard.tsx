@@ -23,9 +23,15 @@ import {
   loadPlaidLinkScript,
   syncBankSnapshot,
 } from '../services/bankSyncService'
+import { CalendarPanel } from './dashboard/CalendarPanel'
 import { DashboardHeader } from './dashboard/DashboardHeader'
 import { DashboardModalContent } from './dashboard/DashboardModalContent'
-import { DashboardPageContent } from './dashboard/DashboardPageContent'
+import { buildGoalItems, summarizeGoalItems, type GoalItemKind } from './dashboard/goalItems'
+import { CashFlowPage } from './dashboard/pages/CashFlowPage'
+import { GoalsPage } from './dashboard/pages/GoalsPage'
+import { HomePage } from './dashboard/pages/HomePage'
+import { InsightsPage } from './dashboard/pages/InsightsPage'
+import { ScenariosPage } from './dashboard/pages/ScenariosPage'
 import { type ModalView, type PageView } from './dashboard/dashboardTypes'
 import {
   clearPersistedState,
@@ -337,9 +343,6 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
     debtForm.payoffDate && debtForm.balance && debtForm.payoffValue
       ? Number(debtForm.balance) - debtCustomPayment * debtPlanCount
       : 0
-  const nearestPurchaseGoal = purchaseGoals
-    .filter((goal) => goal.targetDate >= todayKey)
-    .sort((left, right) => left.targetDate.localeCompare(right.targetDate))[0]
   const monthStartKey = formatDateKey(startOfMonth(currentMonth))
   const monthEndKey = formatDateKey(endOfMonth(currentMonth))
   const currentMonthOccurrences = allOccurrences.filter(
@@ -462,10 +465,6 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
     today,
     6,
   )
-  const maxProjectionMagnitude = Math.max(
-    1,
-    ...monthlyProjection.map((point) => Math.abs(point.balance)),
-  )
   const spendingByCategory = currentMonthOccurrences
     .filter((transaction) => transaction.type !== 'income')
     .reduce<Record<string, number>>((categories, transaction) => {
@@ -479,7 +478,17 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
   const spendingTrend = Object.entries(spendingByCategory)
     .map(([category, amount]) => ({ category, amount }))
     .sort((left, right) => right.amount - left.amount)
-  const maxSpendingCategory = Math.max(1, ...spendingTrend.map((item) => item.amount))
+  const goalItems = buildGoalItems({
+    purchaseGoals,
+    financePlan,
+    debtPlans,
+    emergencyFundPlan,
+    fallbackEssentialExpenses: essentialMonthlyOutflow,
+    monthlySurplus: monthlyNet,
+    projectedBalance,
+    today,
+  })
+  const goalPortfolio = summarizeGoalItems(goalItems, monthlyNet)
   const healthLabel =
     monthlyNet >= 0 && currentAvailableBalance >= 0
       ? 'Stable'
@@ -905,6 +914,47 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
   function openDay(dateKey: string) {
     setSelectedDateKey(dateKey)
     setActiveModal('day')
+  }
+
+  function removeGoal(kind: GoalItemKind, originId: number) {
+    if (kind === 'purchase') {
+      setPurchaseGoals((current) => current.filter((goal) => goal.id !== originId))
+      return
+    }
+
+    if (kind === 'debt') {
+      setDebtPlans((current) => current.filter((debt) => debt.id !== originId))
+    }
+  }
+
+  function removePaycheckRule(id: number) {
+    setPaycheckRules((current) => current.filter((rule) => rule.id !== id))
+  }
+
+  function removeRecurring(id: number) {
+    setRecurringTransactions((current) =>
+      current.filter((transaction) => transaction.id !== id),
+    )
+  }
+
+  function removeScheduled(id: number) {
+    setScheduledTransactions((current) =>
+      current.filter((transaction) => transaction.id !== id),
+    )
+  }
+
+  function removeScenario(id: number) {
+    setScenarioPlans((current) => current.filter((scenario) => scenario.id !== id))
+  }
+
+  function activateScenario(id: number) {
+    setScenarioPlans((current) => {
+      const target = current.find((scenario) => scenario.id === id)
+
+      return target
+        ? [target, ...current.filter((scenario) => scenario.id !== id)]
+        : current
+    })
   }
 
   function removeOccurrence(item: CalendarOccurrence) {
@@ -1510,62 +1560,110 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
           userEmail={userEmail}
         />
 
-        <DashboardPageContent
-          activePage={activePage}
-          activeScenario={activeScenario}
-          allOccurrences={allOccurrences}
-          balanceDisplayValue={
-            damageSequence
-              ? damageSequence.phase === 'resolve'
-                ? damageSequence.nextBalance
-                : damageSequence.previousBalance
-              : currentAvailableBalance
-          }
-          balanceHeroPhase={damageSequence?.phase ?? null}
-          calendarDays={calendarDays}
-          currentCashSourceLabel={
-            usingLinkedBalance
-              ? 'Using linked bank balances'
-              : 'Tap to update manual balance'
-          }
-          currentMonth={currentMonth}
-          debtPlans={debtPlans}
-          emergencyFundPlan={emergencyFundPlan}
-          emergencyFundProgress={emergencyFundProgress}
-          essentialMonthlyOutflow={essentialMonthlyOutflow}
-          financePlan={financePlan}
-          fiveYearInvestmentProjection={fiveYearInvestmentProjection}
-          healthLabel={healthLabel}
-          linkedAccountsCount={linkedAccounts.length}
-          linkedCashBalance={linkedCashBalance}
-          monthlyNet={monthlyNet}
-          monthlyProjectionLength={monthlyProjection.length}
-          nearestPurchaseGoal={nearestPurchaseGoal}
-          netWorthSummary={netWorthSummary}
-          nextPaycheck={nextPaycheck}
-          openDay={openDay}
-          openModal={openModal}
-          paycheckEstimate={paycheckEstimate}
-          paycheckRules={paycheckRules}
-          planProjection={planProjection}
-          primaryRecommendation={primaryRecommendation}
-          projectedBalance={projectedBalance}
-          purchaseGoals={purchaseGoals}
-          recurringTransactions={recurringTransactions}
-          scenarioImpact={scenarioImpact}
-          scheduledTransactions={scheduledTransactions}
-          selectedDateKey={selectedDateKey}
-          setCurrentMonth={setCurrentMonth}
-          sixMonthProjection={sixMonthProjection}
-          spendingTrend={spendingTrend}
-          today={today}
-          todayKey={todayKey}
-          totalBenefitsPerPaycheck={totalBenefitsPerPaycheck}
-          totalDebt={totalDebt}
-          totalInvestmentBalance={totalInvestmentBalance}
-          totalRetirementPerPaycheck={totalRetirementPerPaycheck}
-          upcomingTransactions={upcomingTransactions}
-        />
+        <div className="page-stack">
+          {activePage === 'dashboard' ? (
+            <>
+              <HomePage
+                balanceDisplayValue={
+                  damageSequence
+                    ? damageSequence.phase === 'resolve'
+                      ? damageSequence.nextBalance
+                      : damageSequence.previousBalance
+                    : currentAvailableBalance
+                }
+                balanceHeroPhase={damageSequence?.phase ?? null}
+                currentCashSourceLabel={
+                  usingLinkedBalance
+                    ? 'Using linked bank balances'
+                    : 'Tap to update manual balance'
+                }
+                currentMonth={currentMonth}
+                goalItems={goalItems}
+                goalPortfolio={goalPortfolio}
+                healthLabel={healthLabel}
+                monthlyIncome={monthlyIncome}
+                monthlyNet={monthlyNet}
+                monthlyOutflow={monthlyOutflow}
+                nextPaycheck={nextPaycheck}
+                onNavigate={setActivePage}
+                openModal={openModal}
+                paycheckEstimate={paycheckEstimate}
+                primaryRecommendation={primaryRecommendation}
+                sixMonthProjection={sixMonthProjection}
+              />
+              <CalendarPanel
+                allOccurrences={allOccurrences}
+                calendarDays={calendarDays}
+                currentMonth={currentMonth}
+                debtPlans={debtPlans}
+                openDay={openDay}
+                projectedBalance={projectedBalance}
+                selectedDateKey={selectedDateKey}
+                setCurrentMonth={setCurrentMonth}
+                today={today}
+                todayKey={todayKey}
+                upcomingTransactions={upcomingTransactions}
+              />
+            </>
+          ) : null}
+
+          {activePage === 'cashFlow' ? (
+            <CashFlowPage
+              currentMonth={currentMonth}
+              essentialMonthlyOutflow={essentialMonthlyOutflow}
+              linkedAccountsCount={linkedAccounts.length}
+              linkedCashBalance={linkedCashBalance}
+              monthlyIncome={monthlyIncome}
+              monthlyNet={monthlyNet}
+              monthlyOutflow={monthlyOutflow}
+              openModal={openModal}
+              paycheckEstimate={paycheckEstimate}
+              paycheckRules={paycheckRules}
+              recurringTransactions={recurringTransactions}
+              removePaycheckRule={removePaycheckRule}
+              removeRecurring={removeRecurring}
+              removeScheduled={removeScheduled}
+              scheduledTransactions={scheduledTransactions}
+              todayKey={todayKey}
+              totalBenefitsPerPaycheck={totalBenefitsPerPaycheck}
+            />
+          ) : null}
+
+          {activePage === 'goals' ? (
+            <GoalsPage
+              debtPlans={debtPlans}
+              goalItems={goalItems}
+              goalPortfolio={goalPortfolio}
+              monthlyNet={monthlyNet}
+              openModal={openModal}
+              removeGoal={removeGoal}
+            />
+          ) : null}
+
+          {activePage === 'scenarios' ? (
+            <ScenariosPage
+              activateScenario={activateScenario}
+              activeScenario={activeScenario}
+              openModal={openModal}
+              removeScenario={removeScenario}
+              scenarioImpact={scenarioImpact}
+              scenarioPlans={scenarioPlans}
+            />
+          ) : null}
+
+          {activePage === 'insights' ? (
+            <InsightsPage
+              currentMonth={currentMonth}
+              fiveYearInvestmentProjection={fiveYearInvestmentProjection}
+              monthlyProjection={monthlyProjection}
+              netWorthSummary={netWorthSummary}
+              openModal={openModal}
+              scenarioImpact={scenarioImpact}
+              spendingTrend={spendingTrend}
+              totalInvestmentBalance={totalInvestmentBalance}
+            />
+          ) : null}
+        </div>
       </main>
 
       <AnimatePresence>
@@ -1670,10 +1768,6 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
                   incomeModelForm={incomeModelForm}
                   investmentAccounts={investmentAccounts}
                   investmentForm={investmentForm}
-                  currentMonth={currentMonth}
-                  maxProjectionMagnitude={maxProjectionMagnitude}
-                  maxSpendingCategory={maxSpendingCategory}
-                  monthlyProjection={monthlyProjection}
                   netWorthForm={netWorthForm}
                   netWorthItems={netWorthItems}
                   netWorthSummary={netWorthSummary}
@@ -1729,10 +1823,8 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
                   setScenarioForm={setScenarioForm}
                   setScenarioPlans={setScenarioPlans}
                   setScheduledTransactions={setScheduledTransactions}
-                  spendingTrend={spendingTrend}
                   today={today}
                   totalBenefitsPerPaycheck={totalBenefitsPerPaycheck}
-                  totalDebt={totalDebt}
                   totalInvestmentBalance={totalInvestmentBalance}
                   totalRetirementPerPaycheck={totalRetirementPerPaycheck}
                 />

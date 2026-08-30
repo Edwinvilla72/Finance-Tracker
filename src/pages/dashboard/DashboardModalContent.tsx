@@ -3,12 +3,11 @@ import type {
   FormEventHandler,
   SetStateAction,
 } from 'react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
 import { currency } from '../../utils/currency'
 import {
   formatLongDate,
-  formatMonthLabel,
   getWeekdayList,
   parseDateKey,
   weekdayOptions,
@@ -195,16 +194,6 @@ type ScenarioImpact = {
   investmentFiveYearValue: ScenarioComparison
 }
 
-type MonthlyProjectionPoint = {
-  month: string
-  balance: number
-}
-
-type SpendingTrendPoint = {
-  category: string
-  amount: number
-}
-
 type NetWorthSummary = {
   totalAssets: number
   netWorth: number
@@ -265,16 +254,12 @@ type DashboardModalContentProps = {
   incomeModelForm: IncomeModelForm
   investmentAccounts: InvestmentAccount[]
   investmentForm: InvestmentForm
-  currentMonth: Date
   estimatedPaycheckDate: string
   isConnectingBank: boolean
   isSyncingBank: boolean
   linkedAccounts: LinkedBankAccount[]
   linkedCashBalance: number
   linkedTransactions: LinkedBankTransaction[]
-  maxProjectionMagnitude: number
-  maxSpendingCategory: number
-  monthlyProjection: MonthlyProjectionPoint[]
   netWorthForm: NetWorthForm
   netWorthItems: NetWorthItem[]
   netWorthSummary: NetWorthSummary
@@ -324,10 +309,8 @@ type DashboardModalContentProps = {
   setScenarioForm: Dispatch<SetStateAction<ScenarioForm>>
   setScenarioPlans: Dispatch<SetStateAction<ScenarioPlan[]>>
   setScheduledTransactions: Dispatch<SetStateAction<ScheduledTransaction[]>>
-  spendingTrend: SpendingTrendPoint[]
   today: Date
   totalBenefitsPerPaycheck: number
-  totalDebt: number
   totalInvestmentBalance: number
   totalRetirementPerPaycheck: number
 }
@@ -379,16 +362,12 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
     incomeModelForm,
     investmentAccounts,
     investmentForm,
-    currentMonth,
     estimatedPaycheckDate,
     isConnectingBank,
     isSyncingBank,
     linkedAccounts,
     linkedCashBalance,
     linkedTransactions,
-    maxProjectionMagnitude,
-    maxSpendingCategory,
-    monthlyProjection,
     netWorthForm,
     netWorthItems,
     netWorthSummary,
@@ -438,22 +417,25 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
     setScenarioForm,
     setScenarioPlans,
     setScheduledTransactions,
-    spendingTrend,
     today,
     totalBenefitsPerPaycheck,
-    totalDebt,
     totalInvestmentBalance,
     totalRetirementPerPaycheck,
   } = props
   const [transactionScheduleMode, setTransactionScheduleMode] = useState<
     'oneTime' | 'recurring'
   >(activeModal === 'recurring' ? 'recurring' : 'oneTime')
+  const [lastScheduleModal, setLastScheduleModal] = useState(activeModal)
 
-  useEffect(() => {
+  // Reset the schedule toggle when this modal view changes while mounted,
+  // adjusting state during render instead of inside an effect.
+  if (activeModal !== lastScheduleModal) {
+    setLastScheduleModal(activeModal)
+
     if (activeModal === 'oneTime' || activeModal === 'recurring') {
       setTransactionScheduleMode(activeModal === 'recurring' ? 'recurring' : 'oneTime')
     }
-  }, [activeModal])
+  }
 
   if (activeModal === 'bankSync') {
     return (
@@ -906,307 +888,6 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
               </div>
             </>
           )}
-        </>
-      )
-    }
-
-    if (false && activeModal === 'oneTime') {
-      return (
-        <>
-          <div className="modal-header">
-            <div>
-              <p className="eyebrow">One-time</p>
-              <h2>One-time transactions</h2>
-            </div>
-            <button type="button" className="ghost-button" onClick={closeModal}>
-              Close
-            </button>
-          </div>
-          <form className="stack-form" onSubmit={handleAddOneTimeTransaction}>
-            <input
-              type="text"
-              placeholder="Transaction name"
-              value={oneTimeForm.title}
-              onChange={(event) =>
-                setOneTimeForm((current) => ({
-                  ...current,
-                  title: event.target.value,
-                }))
-              }
-            />
-            <div className="split-row">
-              <input
-                type="number"
-                min="0"
-                placeholder="Amount"
-                value={oneTimeForm.amount}
-                onChange={(event) =>
-                  setOneTimeForm((current) => ({
-                    ...current,
-                    amount: event.target.value,
-                  }))
-                }
-              />
-              <input
-                type="date"
-                value={oneTimeForm.date}
-                onChange={(event) =>
-                  setOneTimeForm((current) => ({
-                    ...current,
-                    date: event.target.value,
-                  }))
-                }
-              />
-            </div>
-            <div className="split-row">
-              <select
-                value={oneTimeForm.type}
-                onChange={(event) =>
-                  setOneTimeForm((current) => ({
-                    ...current,
-                    type: event.target.value as TransactionType,
-                  }))
-                }
-              >
-                <option value="expense">Expense</option>
-                <option value="income">Income</option>
-                <option value="transfer">Transfer</option>
-                <option value="debt">Debt payment</option>
-              </select>
-              <select
-                value={oneTimeForm.category}
-                onChange={(event) =>
-                  setOneTimeForm((current) => ({
-                    ...current,
-                    category: event.target.value,
-                  }))
-                }
-              >
-                <option value="Groceries">Groceries</option>
-                <option value="Dates">Dates</option>
-                <option value="Food">Food</option>
-                <option value="Supplies">Supplies</option>
-                <option value="Shopping">Shopping</option>
-                <option value="Transport">Transport</option>
-                <option value="Health">Health</option>
-                <option value="Entertainment">Entertainment</option>
-                <option value="General">General</option>
-              </select>
-            </div>
-            <button type="submit">Add one-time transaction</button>
-          </form>
-          <div className="modal-list debt-ledger-list">
-            {scheduledTransactions.length === 0 ? (
-              <p className="empty-copy">
-                Add one-time payments here for irregular spending and non-recurring costs.
-              </p>
-            ) : (
-              scheduledTransactions
-                .slice()
-                .sort((left, right) => left.date.localeCompare(right.date))
-                .map((transaction) => (
-                  <div className="modal-list-row" key={transaction.id}>
-                    <div>
-                      <strong>{transaction.title}</strong>
-                      <p>
-                        {transaction.category
-                          ? `${transaction.category} • ${formatLongDate(transaction.date)}`
-                          : formatLongDate(transaction.date)}
-                      </p>
-                    </div>
-                    <div className="row-actions">
-                      <span
-                        className={`day-net ${getSignedAmount(transaction.amount, transaction.type) >= 0
-                          ? 'positive'
-                          : 'negative'
-                          }`}
-                      >
-                        {getSignedAmount(transaction.amount, transaction.type) >= 0 ? '+' : '-'}
-                        {currency.format(transaction.amount)}
-                      </span>
-                      <button
-                        type="button"
-                        className="ghost-button"
-                        onClick={() =>
-                          setScheduledTransactions((current) =>
-                            current.filter((entry) => entry.id !== transaction.id),
-                          )
-                        }
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </div>
-                ))
-            )}
-          </div>
-        </>
-      )
-    }
-
-    if (false && activeModal === 'recurring') {
-      return (
-        <>
-          <div className="modal-header">
-            <div>
-              <p className="eyebrow">Recurring</p>
-              <h2>Recurring transactions</h2>
-            </div>
-            <button type="button" className="ghost-button" onClick={closeModal}>
-              Close
-            </button>
-          </div>
-          <form className="stack-form" onSubmit={handleAddRecurring}>
-            <input
-              type="text"
-              placeholder="Name"
-              value={recurringForm.title}
-              onChange={(event) =>
-                setRecurringForm((current) => ({
-                  ...current,
-                  title: event.target.value,
-                }))
-              }
-            />
-            <select
-              value={recurringForm.frequency}
-              onChange={(event) =>
-                setRecurringForm((current) => ({
-                  ...current,
-                  frequency: event.target.value as 'monthly' | 'weekly',
-                }))
-              }
-            >
-              <option value="monthly">Monthly on a date</option>
-              <option value="weekly">Weekly on weekdays</option>
-            </select>
-            <div className="split-row">
-              <input
-                type="number"
-                min="0"
-                placeholder="Amount"
-                value={recurringForm.amount}
-                onChange={(event) =>
-                  setRecurringForm((current) => ({
-                    ...current,
-                    amount: event.target.value,
-                  }))
-                }
-              />
-              {recurringForm.frequency === 'monthly' ? (
-                <input
-                  type="number"
-                  min="1"
-                  max="31"
-                  placeholder="Day of month"
-                  value={recurringForm.dayOfMonth}
-                  onChange={(event) =>
-                    setRecurringForm((current) => ({
-                      ...current,
-                      dayOfMonth: event.target.value,
-                    }))
-                  }
-                />
-              ) : (
-                <div className="weekday-picker">
-                  {weekdayOptions.map((option) => {
-                    const selected = recurringForm.weekdays.includes(option.value)
-
-                    return (
-                      <button
-                        type="button"
-                        key={option.value}
-                        className={`weekday-chip ${selected ? 'selected' : ''}`}
-                        onClick={() =>
-                          setRecurringForm((current) => ({
-                            ...current,
-                            weekdays: current.weekdays.includes(option.value)
-                              ? current.weekdays.filter((day) => day !== option.value)
-                              : [...current.weekdays, option.value].sort((a, b) => a - b),
-                          }))
-                        }
-                      >
-                        {option.label.slice(0, 3)}
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-            <select
-              value={recurringForm.type}
-              onChange={(event) =>
-                setRecurringForm((current) => ({
-                  ...current,
-                  type: event.target.value as Exclude<TransactionType, 'income'>,
-                }))
-              }
-            >
-              <option value="expense">Expense</option>
-              <option value="transfer">Transfer</option>
-              <option value="debt">Debt payment</option>
-            </select>
-            <label className="field-stack">
-              <span>Start date (optional)</span>
-              <input
-                type="date"
-                value={recurringForm.startDate}
-                onChange={(event) =>
-                  setRecurringForm((current) => ({
-                    ...current,
-                    startDate: event.target.value,
-                  }))
-                }
-              />
-            </label>
-            <label className="field-stack">
-              <span>End date (optional)</span>
-              <input
-                type="date"
-                value={recurringForm.endDate}
-                onChange={(event) =>
-                  setRecurringForm((current) => ({
-                    ...current,
-                    endDate: event.target.value,
-                  }))
-                }
-              />
-            </label>
-            <button type="submit">Add recurring transaction</button>
-          </form>
-          <div className="modal-list compact-list">
-            {recurringTransactions.length === 0 ? (
-              <p className="empty-copy">No recurring transactions yet.</p>
-            ) : (
-              recurringTransactions.map((item) => (
-                <div className="modal-list-row" key={item.id}>
-                  <div>
-                    <strong>{item.title}</strong>
-                    <p>
-                      {item.frequency === 'monthly' && item.dayOfMonth
-                        ? `${item.type} on day ${item.dayOfMonth}`
-                        : item.frequency === 'weekly' && item.weekdays?.length
-                          ? `${item.type} on ${getWeekdayList(item.weekdays)}`
-                          : item.type}
-                      {item.startDate ? ` from ${formatLongDate(item.startDate)}` : ''}
-                      {item.endDate ? ` until ${formatLongDate(item.endDate)}` : ''}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    className="ghost-button"
-                    onClick={() =>
-                      setRecurringTransactions((current) =>
-                        current.filter((entry) => entry.id !== item.id),
-                      )
-                    }
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
         </>
       )
     }
@@ -2237,66 +1918,6 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
       )
     }
 
-    if (activeModal === 'allDebts') {
-      return (
-        <>
-          <div className="modal-header">
-            <div>
-              <p className="eyebrow">Debt overview</p>
-              <h2>All debts</h2>
-            </div>
-            <button type="button" className="ghost-button" onClick={closeModal}>
-              Close
-            </button>
-          </div>
-          <div className="status-strip">
-            <div>
-              <span>Total debt</span>
-              <strong>{currency.format(totalDebt)}</strong>
-            </div>
-            <div>
-              <span>Tracked accounts</span>
-              <strong>{debtPlans.length}</strong>
-            </div>
-          </div>
-          <div className="modal-list debt-ledger-list">
-            {debtPlans.length === 0 ? (
-              <p className="empty-copy">No debts tracked yet.</p>
-            ) : (
-              debtPlans.map((debt) => (
-                <div className="debt-row" key={debt.id}>
-                  <div>
-                    <strong>{debt.title}</strong>
-                    <p>Due {formatLongDate(debt.dueDate)}</p>
-                    <p>Minimum due {currency.format(debt.minimumDue)}</p>
-                    <p>
-                      {debt.payoffDate
-                        ? `Target ${formatLongDate(debt.payoffDate)}`
-                        : 'No payoff target'}
-                    </p>
-                  </div>
-                  <div className="debt-side">
-                    <span>{currency.format(debt.balance)}</span>
-                    <button
-                      type="button"
-                      className="ghost-button"
-                      onClick={() =>
-                        setDebtPlans((current) =>
-                          current.filter((entry) => entry.id !== debt.id),
-                        )
-                      }
-                    >
-                      Remove
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </>
-      )
-    }
-
     if (activeModal === 'plan') {
       return (
         <>
@@ -2976,124 +2597,6 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
               </div>
             ))}
           </div>
-        </>
-      )
-    }
-
-    if (activeModal === 'insights') {
-      const scenarioBars = scenarioImpact
-        ? [
-          ['Paycheck', scenarioImpact.netPaycheck.delta],
-          ['Monthly', scenarioImpact.monthlyNet.delta],
-          ['6-month', scenarioImpact.sixMonthCash.delta],
-          ['Net worth', scenarioImpact.netWorth.delta],
-        ]
-        : []
-      const maxScenarioDelta = Math.max(
-        1,
-        ...scenarioBars.map(([, value]) => Math.abs(value as number)),
-      )
-
-      return (
-        <>
-          <div className="modal-header">
-            <div>
-              <p className="eyebrow">Insights</p>
-              <h2>Trends and overviews</h2>
-            </div>
-            <button type="button" className="ghost-button" onClick={closeModal}>
-              Close
-            </button>
-          </div>
-
-          <section className="chart-panel">
-            <div className="modal-header compact-modal-header">
-              <div>
-                <p className="eyebrow">Cash trend</p>
-                <h2>Projected balance</h2>
-              </div>
-            </div>
-            <div className="bar-chart">
-              {monthlyProjection.map((point) => (
-                <div className="bar-row" key={point.month}>
-                  <span>{formatMonthLabel(parseDateKey(point.month)).slice(0, 3)}</span>
-                  <div className="bar-track">
-                    <div
-                      className={`bar-fill ${point.balance >= 0 ? 'positive' : 'negative'}`}
-                      style={{
-                        width: `${Math.max(
-                          4,
-                          Math.abs(point.balance) / maxProjectionMagnitude * 100,
-                        )}%`,
-                      }}
-                    />
-                  </div>
-                  <strong>{currency.format(point.balance)}</strong>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="chart-panel">
-            <div className="modal-header compact-modal-header">
-              <div>
-                <p className="eyebrow">Spending</p>
-                <h2>{formatMonthLabel(currentMonth)} mix</h2>
-              </div>
-            </div>
-            <div className="bar-chart">
-              {spendingTrend.length === 0 ? (
-                <p className="empty-copy">No spending categories this month yet.</p>
-              ) : (
-                spendingTrend.map((item) => (
-                  <div className="bar-row" key={item.category}>
-                    <span>{item.category}</span>
-                    <div className="bar-track">
-                      <div
-                        className="bar-fill spending"
-                        style={{
-                          width: `${Math.max(4, item.amount / maxSpendingCategory * 100)}%`,
-                        }}
-                      />
-                    </div>
-                    <strong>{currency.format(item.amount)}</strong>
-                  </div>
-                ))
-              )}
-            </div>
-          </section>
-
-          <section className="chart-panel">
-            <div className="modal-header compact-modal-header">
-              <div>
-                <p className="eyebrow">Scenario</p>
-                <h2>Impact overview</h2>
-              </div>
-            </div>
-            <div className="bar-chart">
-              {scenarioBars.length === 0 ? (
-                <p className="empty-copy">Create a scenario to see impact bars.</p>
-              ) : (
-                scenarioBars.map(([label, value]) => (
-                  <div className="bar-row" key={label as string}>
-                    <span>{label as string}</span>
-                    <div className="bar-track">
-                      <div
-                        className={`bar-fill ${(value as number) >= 0 ? 'positive' : 'negative'}`}
-                        style={{
-                          width: `${Math.max(
-                            4,
-                            Math.abs(value as number) / maxScenarioDelta * 100,
-                          )}%`,
-                        }}
-                      />
-                    </div>
-                    <strong>{currency.format(value as number)}</strong>
-                  </div>
-                ))
-              )}
-            </div>
-          </section>
         </>
       )
     }

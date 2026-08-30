@@ -39,6 +39,14 @@ export function formatLongDate(dateKey: string) {
   })
 }
 
+export function formatShortDate(dateKey: string) {
+  return parseDateKey(dateKey).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
 export function formatMonthLabel(date: Date) {
   return date.toLocaleDateString('en-US', {
     month: 'long',

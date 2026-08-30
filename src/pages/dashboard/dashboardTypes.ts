@@ -12,25 +12,22 @@ export type ModalView =
   | 'investments'
   | 'netWorth'
   | 'scenarios'
-  | 'insights'
   | 'debt'
-  | 'allDebts'
   | 'plan'
   | 'purchaseGoals'
   | null
 
 export type PageView =
   | 'dashboard'
-  | 'calendar'
   | 'cashFlow'
-  | 'planning'
+  | 'goals'
   | 'scenarios'
   | 'insights'
 
 export const pageTabs: { label: string; value: PageView }[] = [
   { label: 'Dashboard', value: 'dashboard' },
   { label: 'Cash Flow', value: 'cashFlow' },
-  { label: 'Planning', value: 'planning' },
+  { label: 'Goals', value: 'goals' },
   { label: 'Scenarios', value: 'scenarios' },
   { label: 'Insights', value: 'insights' },
 ]

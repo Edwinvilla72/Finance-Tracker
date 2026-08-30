@@ -22,9 +22,9 @@ function getInitialAppMode(): AppMode {
 
 function App() {
   const [session, setSession] = useState<Session | null>(null)
-  const [loading, setLoading] = useState(true)
   const [appMode, setAppMode] = useState<AppMode>(getInitialAppMode)
   const isLocalMode = appMode === 'local'
+  const [loading, setLoading] = useState(!isLocalMode && isSupabaseConfigured)
 
   function handleModeChange(nextMode: AppMode) {
     localStorage.setItem(APP_MODE_STORAGE_KEY, nextMode)
@@ -34,7 +34,6 @@ function App() {
 
   useEffect(() => {
     if (isLocalMode || !isSupabaseConfigured || !supabase) {
-      setLoading(false)
       return
     }
 
