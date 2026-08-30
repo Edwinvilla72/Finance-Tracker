@@ -10,6 +10,7 @@ Finance-Tracker is moving from a manual finance calendar into a personal financi
 4. Add debt APR, emergency fund, savings, investment, retirement, and net worth projections. Started with APR-aware debt estimates, emergency fund targets, investment growth projections, and net worth tracking.
 5. Add scenario planning and advanced insights. Started with baseline-vs-scenario inputs plus chart-style insight views for cash trends, spending mix, and scenario impact.
 6. Polish UX, validation, tests, documentation, loading states, error states, and financial disclaimers.
+7. Goal-centered revamp (issue 001, completed 2026-08-30): flat design system, page-first navigation instead of modal-first, a unified Goals page with per-goal and portfolio feasibility verdicts (see GOALS.md), inline lists on Cash Flow and Scenarios, inline charts on Insights, and vitest coverage for the goals engine.
 
 ## Architecture Direction
 

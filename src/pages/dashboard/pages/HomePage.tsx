@@ -200,7 +200,7 @@ export function HomePage({
                   </Badge>
                 </div>
                 <p className="goal-meta">
-                  {currency.format(goal.amount)} {goal.targetLabel}
+                  {currency.format(goal.amount)} · {goal.targetLabel}
                 </p>
                 {goal.progressPercent !== null ? (
                   <ProgressBar

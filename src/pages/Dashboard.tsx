@@ -465,6 +465,12 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
     today,
     6,
   )
+  const lastProjectionPoint = monthlyProjection[monthlyProjection.length - 1]
+  // Goal feasibility uses the average saving pace over the next six scheduled
+  // months, which is steadier than the currently viewed month's net.
+  const monthlySurplus = lastProjectionPoint
+    ? (lastProjectionPoint.balance - currentBalance) / monthlyProjection.length
+    : monthlyNet
   const spendingByCategory = currentMonthOccurrences
     .filter((transaction) => transaction.type !== 'income')
     .reduce<Record<string, number>>((categories, transaction) => {
@@ -484,13 +490,13 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
     debtPlans,
     emergencyFundPlan,
     fallbackEssentialExpenses: essentialMonthlyOutflow,
-    monthlySurplus: monthlyNet,
+    monthlySurplus,
     projectedBalance,
     today,
   })
-  const goalPortfolio = summarizeGoalItems(goalItems, monthlyNet)
+  const goalPortfolio = summarizeGoalItems(goalItems, monthlySurplus)
   const healthLabel =
-    monthlyNet >= 0 && currentAvailableBalance >= 0
+    monthlySurplus >= 0 && currentAvailableBalance >= 0
       ? 'Stable'
       : projectedMonthEndBalance < 0
         ? 'Needs attention'
@@ -502,7 +508,7 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
         ? 'Add your income and paycheck assumptions so the planner can estimate real take-home pay.'
         : essentialMonthlyOutflow === 0
           ? 'Add rent and essential monthly expenses so affordability checks start with your real obligations.'
-          : totalDebt > 0 && monthlyNet > 0
+          : totalDebt > 0 && monthlySurplus > 0
             ? 'You have positive projected cash flow. Consider directing part of the surplus toward debt or emergency savings.'
             : !financePlan.targetDate
               ? 'Set a target amount and date so the planner can judge whether your cash flow supports the goal.'
@@ -1634,7 +1640,7 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
               debtPlans={debtPlans}
               goalItems={goalItems}
               goalPortfolio={goalPortfolio}
-              monthlyNet={monthlyNet}
+              monthlySurplus={monthlySurplus}
               openModal={openModal}
               removeGoal={removeGoal}
             />

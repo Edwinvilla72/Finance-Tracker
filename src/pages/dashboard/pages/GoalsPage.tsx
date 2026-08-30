@@ -19,7 +19,7 @@ type GoalsPageProps = {
   debtPlans: DebtPlan[]
   goalItems: GoalItem[]
   goalPortfolio: GoalPortfolioSummary
-  monthlyNet: number
+  monthlySurplus: number
   openModal: (view: Exclude<ModalView, null>) => void
   removeGoal: (kind: GoalItemKind, originId: number) => void
 }
@@ -67,6 +67,10 @@ function describeGoal(goal: GoalItem) {
   }
 
   if (feasibility.status === 'on_track') {
+    if (goal.kind === 'emergency') {
+      return `Saving ${required}/mo builds the full fund within about a year, and it fits inside your monthly surplus.`
+    }
+
     return `${isDebt ? 'Paying' : 'Saving'} ${required}/mo ${goal.targetLabel} fits inside your monthly surplus.`
   }
 
@@ -87,7 +91,7 @@ export function GoalsPage({
   debtPlans,
   goalItems,
   goalPortfolio,
-  monthlyNet,
+  monthlySurplus,
   openModal,
   removeGoal,
 }: GoalsPageProps) {
@@ -112,11 +116,11 @@ export function GoalsPage({
         <div className="stat-row stat-row-embedded">
           <div className="stat-card">
             <span>Monthly surplus</span>
-            <strong className={monthlyNet >= 0 ? 'positive-text' : 'negative-text'}>
-              {monthlyNet >= 0 ? '+' : '-'}
-              {currency.format(Math.abs(monthlyNet))}
+            <strong className={monthlySurplus >= 0 ? 'positive-text' : 'negative-text'}>
+              {monthlySurplus >= 0 ? '+' : '-'}
+              {currency.format(Math.abs(Math.round(monthlySurplus)))}
             </strong>
-            <small>Projected income minus outflow this month</small>
+            <small>Average saving pace over the next 6 scheduled months</small>
           </div>
           <div className="stat-card">
             <span>Committed to goals</span>
@@ -173,7 +177,7 @@ export function GoalsPage({
                 <div>
                   <strong>{goal.title}</strong>
                   <p className="goal-meta">
-                    {currency.format(goal.amount)} {goal.targetLabel}
+                    {currency.format(goal.amount)} · {goal.targetLabel}
                   </p>
                 </div>
                 <Badge tone={goalStatusTones[goal.feasibility.status]}>

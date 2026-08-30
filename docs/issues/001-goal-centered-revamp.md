@@ -1,7 +1,15 @@
 # Issue 001: Goal-centered revamp with flat design
 
-Status: Open
+Status: Closed
 Opened: 2026-08-30
+Closed: 2026-08-30
+
+## Outcome
+
+Shipped in full.
+The goals engine landed in `src/calculations/goals.ts` with vitest coverage, every tab is now a real page under `src/pages/dashboard/pages/`, the Planning tab became Goals, and the flat design replaced all gradients and blur.
+Feasibility uses a forward-looking monthly surplus (average over the next six scheduled months) instead of the viewed month's net, so verdicts stay stable across paycheck timing.
+The model and its assumptions are documented in `docs/GOALS.md`.
 
 ## Problem
 
