@@ -11,6 +11,7 @@ Finance-Tracker is moving from a manual finance calendar into a personal financi
 5. Add scenario planning and advanced insights. Started with baseline-vs-scenario inputs plus chart-style insight views for cash trends, spending mix, and scenario impact.
 6. Polish UX, validation, tests, documentation, loading states, error states, and financial disclaimers.
 7. Goal-centered revamp (issue 001, completed 2026-08-30): flat design system, page-first navigation instead of modal-first, a unified Goals page with per-goal and portfolio feasibility verdicts (see GOALS.md), inline lists on Cash Flow and Scenarios, inline charts on Insights, and vitest coverage for the goals engine.
+8. UX audit and Apple-style dashboard (issue 002, completed 2026-08-31): verified email links redirect back to the app with errors surfaced, one paycheck modal with a quick-add/salary-and-taxes toggle, recurring occurrences generated through the full projection horizon, native required validation on forms, cents supported in every money field, and a simplified dashboard (stat band, calendar, upcoming).
 
 ## Architecture Direction
 

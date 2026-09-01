@@ -3,6 +3,7 @@ import type {
   DebtPlan,
   FinancePlan,
   PaycheckRule,
+  PurchaseGoal,
   RecurringTransaction,
   ScheduledTransaction,
   TransactionType,
@@ -36,6 +37,11 @@ export function getSignedAmount(amount: number, type: TransactionType) {
   return type === 'income' ? amount : -amount
 }
 
+// Recurring items must exist through at least this many months ahead so
+// balance projections and goal feasibility see the full schedule, not just
+// the visible month.
+export const PROJECTION_HORIZON_MONTHS = 6
+
 type OccurrenceInput = {
   currentMonth: Date
   today: Date
@@ -44,6 +50,7 @@ type OccurrenceInput = {
   paycheckRules: PaycheckRule[]
   debtPlans: DebtPlan[]
   financePlan: FinancePlan
+  purchaseGoals?: PurchaseGoal[]
 }
 
 export function buildCalendarOccurrences({
@@ -54,6 +61,7 @@ export function buildCalendarOccurrences({
   paycheckRules,
   debtPlans,
   financePlan,
+  purchaseGoals = [],
 }: OccurrenceInput) {
   const visibleMonthStart = startOfMonth(currentMonth)
   const currentMonthStart = startOfMonth(today)
@@ -66,7 +74,16 @@ export function buildCalendarOccurrences({
       .flatMap((debt) => [debt.dueDate, debt.payoffDate])
       .filter(Boolean)
       .map((value) => parseDateKey(value)),
+    ...purchaseGoals
+      .map((goal) => goal.targetDate)
+      .filter(Boolean)
+      .map((value) => parseDateKey(value)),
     financePlan.targetDate ? parseDateKey(financePlan.targetDate) : today,
+    new Date(
+      today.getFullYear(),
+      today.getMonth() + PROJECTION_HORIZON_MONTHS + 1,
+      0,
+    ),
     new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0),
   ]
 

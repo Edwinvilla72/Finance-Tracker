@@ -275,12 +275,14 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
         paycheckRules,
         debtPlans,
         financePlan,
+        purchaseGoals,
       }),
     [
       currentMonth,
       debtPlans,
       financePlan,
       paycheckRules,
+      purchaseGoals,
       recurringTransactions,
       scheduledTransactions,
       today,
@@ -308,9 +310,6 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
   const totalInvestmentBalance = investmentAccounts.reduce(
     (sum, account) => sum + account.balance,
     0,
-  )
-  const projectedMonthEndBalance = projectedBalance(
-    formatDateKey(endOfMonth(currentMonth)),
   )
   const planProjection = financePlan.targetDate
     ? projectedBalance(financePlan.targetDate)
@@ -495,26 +494,6 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
     today,
   })
   const goalPortfolio = summarizeGoalItems(goalItems, monthlySurplus)
-  const healthLabel =
-    monthlySurplus >= 0 && currentAvailableBalance >= 0
-      ? 'Stable'
-      : projectedMonthEndBalance < 0
-        ? 'Needs attention'
-        : 'Tight'
-  const primaryRecommendation =
-    projectedMonthEndBalance < 0
-      ? 'Your current schedule projects a negative month-end balance. Review upcoming bills or add expected income.'
-      : !paycheckEstimate
-        ? 'Add your income and paycheck assumptions so the planner can estimate real take-home pay.'
-        : essentialMonthlyOutflow === 0
-          ? 'Add rent and essential monthly expenses so affordability checks start with your real obligations.'
-          : totalDebt > 0 && monthlySurplus > 0
-            ? 'You have positive projected cash flow. Consider directing part of the surplus toward debt or emergency savings.'
-            : !financePlan.targetDate
-              ? 'Set a target amount and date so the planner can judge whether your cash flow supports the goal.'
-              : planGap > 0
-                ? 'Your target is not fully funded yet. Add income, reduce planned spending, or move the target date.'
-                : 'Your current plan is on track. Keep upcoming transactions current so the forecast stays useful.'
 
   useEffect(() => {
     if (!userId) {
@@ -727,6 +706,22 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
     [],
   )
 
+  useEffect(() => {
+    if (!activeModal) {
+      return
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setActiveModal(null)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [activeModal])
+
   function getPurchaseGoalProjection(goal: PurchaseGoal) {
     const projectedOnTarget = projectedBalance(goal.targetDate)
     const afterPurchase = projectedOnTarget - goal.cost
@@ -749,7 +744,7 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
       setBalanceDraft(currentBalanceInput)
     }
 
-    if (view === 'incomeModel') {
+    if (view === 'incomeModel' || view === 'paycheck') {
       const savedIncome = financialProfile.incomeSources[0]
 
       setIncomeModelForm({
@@ -1362,7 +1357,10 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
       {
         id: Date.now(),
         title: `${primaryIncome.name} net pay`,
-        amount: Math.max(0, Math.round(paycheckEstimate.estimatedNetPaycheck)),
+        amount: Math.max(
+          0,
+          Math.round(paycheckEstimate.estimatedNetPaycheck * 100) / 100,
+        ),
         frequency: paycheckFrequency,
         dayOfMonth: paycheckFrequency === 'monthly' ? anchorDate.getDate() : undefined,
         weekday: paycheckFrequency === 'monthly' ? undefined : anchorDate.getDay(),
@@ -1578,35 +1576,19 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
                     : currentAvailableBalance
                 }
                 balanceHeroPhase={damageSequence?.phase ?? null}
-                currentCashSourceLabel={
-                  usingLinkedBalance
-                    ? 'Using linked bank balances'
-                    : 'Tap to update manual balance'
-                }
-                currentMonth={currentMonth}
-                goalItems={goalItems}
-                goalPortfolio={goalPortfolio}
-                healthLabel={healthLabel}
                 monthlyIncome={monthlyIncome}
                 monthlyNet={monthlyNet}
                 monthlyOutflow={monthlyOutflow}
-                nextPaycheck={nextPaycheck}
-                onNavigate={setActivePage}
                 openModal={openModal}
-                paycheckEstimate={paycheckEstimate}
-                primaryRecommendation={primaryRecommendation}
-                sixMonthProjection={sixMonthProjection}
               />
               <CalendarPanel
                 allOccurrences={allOccurrences}
                 calendarDays={calendarDays}
                 currentMonth={currentMonth}
-                debtPlans={debtPlans}
                 openDay={openDay}
                 projectedBalance={projectedBalance}
                 selectedDateKey={selectedDateKey}
                 setCurrentMonth={setCurrentMonth}
-                today={today}
                 todayKey={todayKey}
                 upcomingTransactions={upcomingTransactions}
               />
@@ -1719,6 +1701,8 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
             <div className="modal-shell">
               <motion.section
                 className="modal-card"
+                role="dialog"
+                aria-modal="true"
                 aria-label="Planner modal"
                 initial={{ opacity: 0, scale: 0.94, y: 18 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}

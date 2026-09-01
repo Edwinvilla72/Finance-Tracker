@@ -425,15 +425,22 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
   const [transactionScheduleMode, setTransactionScheduleMode] = useState<
     'oneTime' | 'recurring'
   >(activeModal === 'recurring' ? 'recurring' : 'oneTime')
+  const [paycheckEntryMode, setPaycheckEntryMode] = useState<'simple' | 'taxes'>(
+    activeModal === 'incomeModel' ? 'taxes' : 'simple',
+  )
   const [lastScheduleModal, setLastScheduleModal] = useState(activeModal)
 
-  // Reset the schedule toggle when this modal view changes while mounted,
+  // Reset the mode toggles when the modal view changes while mounted,
   // adjusting state during render instead of inside an effect.
   if (activeModal !== lastScheduleModal) {
     setLastScheduleModal(activeModal)
 
     if (activeModal === 'oneTime' || activeModal === 'recurring') {
       setTransactionScheduleMode(activeModal === 'recurring' ? 'recurring' : 'oneTime')
+    }
+
+    if (activeModal === 'paycheck' || activeModal === 'incomeModel') {
+      setPaycheckEntryMode(activeModal === 'incomeModel' ? 'taxes' : 'simple')
     }
   }
 
@@ -475,6 +482,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
                 <strong>$</strong>
                 <input
                   type="number"
+                  step="0.01"
                   min="0"
                   placeholder="0"
                   value={balanceDraft}
@@ -513,7 +521,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
           <form className="stack-form" onSubmit={handleAddDayTransaction}>
             <input
               type="text"
-              placeholder="Scheduled transaction"
+              placeholder="Scheduled transaction" required
               value={dayForm.title}
               onChange={(event) =>
                 setDayForm((current) => ({ ...current, title: event.target.value }))
@@ -522,8 +530,9 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
             <div className="split-row">
               <input
                 type="number"
+                step="0.01"
                 min="0"
-                placeholder="Amount"
+                placeholder="Amount" required
                 value={dayForm.amount}
                 onChange={(event) =>
                   setDayForm((current) => ({ ...current, amount: event.target.value }))
@@ -614,7 +623,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
               <form className="stack-form" onSubmit={handleAddRecurring}>
                 <input
                   type="text"
-                  placeholder="Name"
+                  placeholder="Name" required
                   value={recurringForm.title}
                   onChange={(event) =>
                     setRecurringForm((current) => ({
@@ -638,8 +647,9 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
                 <div className="split-row">
                   <input
                     type="number"
+                    step="0.01"
                     min="0"
-                    placeholder="Amount"
+                    placeholder="Amount" required
                     value={recurringForm.amount}
                     onChange={(event) =>
                       setRecurringForm((current) => ({
@@ -653,7 +663,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
                       type="number"
                       min="1"
                       max="31"
-                      placeholder="Day of month"
+                      placeholder="Day of month" required
                       value={recurringForm.dayOfMonth}
                       onChange={(event) =>
                         setRecurringForm((current) => ({
@@ -688,6 +698,10 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
                     </div>
                   )}
                 </div>
+                {recurringForm.frequency === 'weekly' &&
+                recurringForm.weekdays.length === 0 ? (
+                  <p className="empty-copy">Pick at least one weekday above.</p>
+                ) : null}
                 <select
                   value={recurringForm.type}
                   onChange={(event) =>
@@ -768,7 +782,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
               <form className="stack-form" onSubmit={handleAddOneTimeTransaction}>
                 <input
                   type="text"
-                  placeholder="Transaction name"
+                  placeholder="Transaction name" required
                   value={oneTimeForm.title}
                   onChange={(event) =>
                     setOneTimeForm((current) => ({
@@ -780,8 +794,9 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
                 <div className="split-row">
                   <input
                     type="number"
+                    step="0.01"
                     min="0"
-                    placeholder="Amount"
+                    placeholder="Amount" required
                     value={oneTimeForm.amount}
                     onChange={(event) =>
                       setOneTimeForm((current) => ({
@@ -792,6 +807,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
                   />
                   <input
                     type="date"
+                    required
                     value={oneTimeForm.date}
                     onChange={(event) =>
                       setOneTimeForm((current) => ({
@@ -892,22 +908,50 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
       )
     }
 
-    if (activeModal === 'paycheck') {
+    if (activeModal === 'paycheck' || activeModal === 'incomeModel') {
+      const usesTaxEstimate = paycheckEntryMode === 'taxes'
+      const canUseEstimateAsPaycheck =
+        primaryIncome?.payFrequency === 'weekly' ||
+        primaryIncome?.payFrequency === 'biweekly' ||
+        primaryIncome?.payFrequency === 'monthly'
+
       return (
         <>
           <div className="modal-header">
             <div>
               <p className="eyebrow">Income</p>
-              <h2>Paycheck days</h2>
+              <h2>Paychecks</h2>
             </div>
             <button type="button" className="ghost-button" onClick={closeModal}>
               Close
             </button>
           </div>
+          <div className="split-row">
+            <button
+              type="button"
+              className={`weekday-chip ${!usesTaxEstimate ? 'selected' : ''}`}
+              onClick={() => setPaycheckEntryMode('simple')}
+            >
+              Quick add
+            </button>
+            <button
+              type="button"
+              className={`weekday-chip ${usesTaxEstimate ? 'selected' : ''}`}
+              onClick={() => setPaycheckEntryMode('taxes')}
+            >
+              Salary & taxes
+            </button>
+          </div>
+          <p className="empty-copy modal-intro">
+            {usesTaxEstimate
+              ? 'Estimate take-home pay from salary, state, filing status, benefits, and retirement, then schedule the net amount as a paycheck. These are planning estimates, not tax advice.'
+              : 'Add the amount that reaches your account and how often it arrives.'}
+          </p>
+          {usesTaxEstimate ? null : (
           <form className="stack-form" onSubmit={handleAddPaycheck}>
             <input
               type="text"
-              placeholder="Paycheck label"
+              placeholder="Paycheck label" required
               value={paycheckForm.title}
               onChange={(event) =>
                 setPaycheckForm((current) => ({
@@ -932,8 +976,9 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
             <div className="split-row">
               <input
                 type="number"
+                step="0.01"
                 min="0"
-                placeholder="Amount"
+                placeholder="Amount" required
                 value={paycheckForm.amount}
                 onChange={(event) =>
                   setPaycheckForm((current) => ({
@@ -947,7 +992,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
                   type="number"
                   min="1"
                   max="31"
-                  placeholder="Day of month"
+                  placeholder="Day of month" required
                   value={paycheckForm.dayOfMonth}
                   onChange={(event) =>
                     setPaycheckForm((current) => ({
@@ -979,6 +1024,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
                 <span>First paycheck date</span>
                 <input
                   type="date"
+                  required
                   value={paycheckForm.startDate}
                   onChange={(event) =>
                     setPaycheckForm((current) => ({
@@ -990,72 +1036,15 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
                 />
               </label>
             ) : null}
-            <button type="submit">Add paycheck day</button>
+            <button type="submit">Add paycheck</button>
           </form>
-          <div className="modal-list compact-list">
-            {paycheckRules.length === 0 ? (
-              <p className="empty-copy">No paycheck rules yet.</p>
-            ) : (
-              paycheckRules.map((item) => (
-                <div className="modal-list-row" key={item.id}>
-                  <div>
-                    <strong>{item.title}</strong>
-                    <p>
-                      {item.frequency === 'monthly' && item.dayOfMonth
-                        ? `Monthly on day ${item.dayOfMonth}`
-                        : item.frequency === 'weekly' && typeof item.weekday === 'number'
-                          ? `Weekly on ${weekdayOptions[item.weekday].label}`
-                          : item.frequency === 'biweekly' &&
-                            typeof item.weekday === 'number'
-                            ? `Biweekly on ${weekdayOptions[item.weekday].label}`
-                            : ''}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    className="ghost-button"
-                    onClick={() =>
-                      setPaycheckRules((current) =>
-                        current.filter((entry) => entry.id !== item.id),
-                      )
-                    }
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-        </>
-      )
-    }
-
-    if (activeModal === 'incomeModel') {
-      const canUseEstimateAsPaycheck =
-        primaryIncome?.payFrequency === 'weekly' ||
-        primaryIncome?.payFrequency === 'biweekly' ||
-        primaryIncome?.payFrequency === 'monthly'
-
-      return (
-        <>
-          <div className="modal-header">
-            <div>
-              <p className="eyebrow">Income model</p>
-              <h2>Gross to net paycheck</h2>
-            </div>
-            <button type="button" className="ghost-button" onClick={closeModal}>
-              Close
-            </button>
-          </div>
-          <p className="empty-copy modal-intro">
-            Estimate take-home pay from salary or hourly income, state, filing
-            status, benefits, and retirement deductions. These numbers are planning
-            estimates, not tax or financial advice.
-          </p>
+          )}
+          {usesTaxEstimate ? (
+            <>
           <form className="stack-form" onSubmit={handleSaveIncomeModel}>
             <input
               type="text"
-              placeholder="Income name"
+              placeholder="Income name" required
               value={incomeModelForm.name}
               onChange={(event) =>
                 setIncomeModelForm((current) => ({
@@ -1086,8 +1075,9 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
                 <span>{incomeModelForm.type === 'hourly' ? 'Hourly rate' : 'Annual amount'}</span>
                 <input
                   type="number"
+                  step="0.01"
                   min="0"
-                  placeholder="0"
+                  placeholder="0" required
                   value={incomeModelForm.amount}
                   onChange={(event) =>
                     setIncomeModelForm((current) => ({
@@ -1103,6 +1093,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
                 <span>Hours per week</span>
                 <input
                   type="number"
+                  step="0.01"
                   min="0"
                   disabled={incomeModelForm.type !== 'hourly'}
                   value={incomeModelForm.hoursPerWeek}
@@ -1233,6 +1224,47 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
               calendar rules currently support weekly, biweekly, and monthly timing.
             </p>
           ) : null}
+            </>
+          ) : null}
+          <div className="modal-list compact-list">
+            {paycheckRules.length === 0 ? (
+              <p className="empty-copy">No scheduled paychecks yet.</p>
+            ) : (
+              paycheckRules.map((item) => (
+                <div className="modal-list-row" key={item.id}>
+                  <div>
+                    <strong>{item.title}</strong>
+                    <p>
+                      {item.frequency === 'monthly' && item.dayOfMonth
+                        ? `Monthly on day ${item.dayOfMonth}`
+                        : item.frequency === 'weekly' && typeof item.weekday === 'number'
+                          ? `Weekly on ${weekdayOptions[item.weekday].label}`
+                          : item.frequency === 'biweekly' &&
+                            typeof item.weekday === 'number'
+                            ? `Biweekly on ${weekdayOptions[item.weekday].label}`
+                            : ''}
+                    </p>
+                  </div>
+                  <div className="row-actions">
+                    <span className="day-net positive">
+                      +{currency.format(item.amount)}
+                    </span>
+                    <button
+                      type="button"
+                      className="ghost-button"
+                      onClick={() =>
+                        setPaycheckRules((current) =>
+                          current.filter((entry) => entry.id !== item.id),
+                        )
+                      }
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </>
       )
     }
@@ -1258,7 +1290,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
           <form className="stack-form" onSubmit={handleAddBenefit}>
             <input
               type="text"
-              placeholder="Benefit name"
+              placeholder="Benefit name" required
               value={benefitForm.name}
               onChange={(event) =>
                 setBenefitForm((current) => ({ ...current, name: event.target.value }))
@@ -1293,8 +1325,9 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
                 <span>Amount per paycheck</span>
                 <input
                   type="number"
+                  step="0.01"
                   min="0"
-                  placeholder="0"
+                  placeholder="0" required
                   value={benefitForm.amountPerPaycheck}
                   onChange={(event) =>
                     setBenefitForm((current) => ({
@@ -1365,8 +1398,9 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
             <div className="split-row">
               <input
                 type="number"
+                step="0.01"
                 min="0"
-                placeholder={retirementForm.contributionMode === 'percent' ? 'e.g. 6' : 'e.g. 150'}
+                placeholder={retirementForm.contributionMode === 'percent' ? 'e.g. 6' : 'e.g. 150'} required
                 value={retirementForm.contributionValue}
                 onChange={(event) =>
                   setRetirementForm((current) => ({
@@ -1377,6 +1411,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
               />
               <input
                 type="number"
+                step="0.01"
                 min="0"
                 placeholder="Employer match %"
                 value={retirementForm.employerMatchPercent}
@@ -1390,6 +1425,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
             </div>
             <input
               type="number"
+              step="0.01"
               min="0"
               placeholder="Employer match limit % of pay"
               value={retirementForm.employerMatchLimitPercent}
@@ -1497,6 +1533,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
                 <span>Rent / mortgage</span>
                 <input
                   type="number"
+                  step="0.01"
                   min="0"
                   placeholder="0"
                   value={essentialExpenseForm.rent}
@@ -1533,6 +1570,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
                   <span>{label}</span>
                   <input
                     type="number"
+                    step="0.01"
                     min="0"
                     placeholder="0"
                     value={
@@ -1565,6 +1603,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
                   <span>{label}</span>
                   <input
                     type="number"
+                    step="0.01"
                     min="0"
                     placeholder="0"
                     value={
@@ -1679,7 +1718,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
           <form className="stack-form" onSubmit={handleAddDebt}>
             <input
               type="text"
-              placeholder="Debt name"
+              placeholder="Debt name" required
               value={debtForm.title}
               onChange={(event) =>
                 setDebtForm((current) => ({ ...current, title: event.target.value }))
@@ -1688,8 +1727,9 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
             <div className="split-row">
               <input
                 type="number"
+                step="0.01"
                 min="0"
-                placeholder="Balance"
+                placeholder="Balance" required
                 value={debtForm.balance}
                 onChange={(event) =>
                   setDebtForm((current) => ({ ...current, balance: event.target.value }))
@@ -1697,8 +1737,9 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
               />
               <input
                 type="number"
+                step="0.01"
                 min="0"
-                placeholder="Minimum due"
+                placeholder="Minimum due" required
                 value={debtForm.minimumDue}
                 onChange={(event) =>
                   setDebtForm((current) => ({
@@ -1713,6 +1754,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
                 <span>Due date</span>
                 <input
                   type="date"
+                  required
                   value={debtForm.dueDate}
                   onChange={(event) =>
                     setDebtForm((current) => ({ ...current, dueDate: event.target.value }))
@@ -1736,6 +1778,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
             <div className="split-row">
               <input
                 type="number"
+                step="0.01"
                 min="0"
                 placeholder="APR % (optional)"
                 value={debtForm.apr}
@@ -1745,6 +1788,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
               />
               <input
                 type="number"
+                step="0.01"
                 min="0"
                 placeholder="Extra monthly payment"
                 value={debtForm.extraPayment}
@@ -1802,6 +1846,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
                   </span>
                   <input
                     type="number"
+                    step="0.01"
                     min="0"
                     placeholder={
                       debtForm.payoffMode === 'amount' ? 'e.g. 150' : 'e.g. 10'
@@ -1933,6 +1978,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
           <form className="stack-form" onSubmit={(event) => event.preventDefault()}>
             <input
               type="number"
+              step="0.01"
               min="0"
               placeholder="Target amount"
               value={financePlan.targetAmount || ''}
@@ -1992,7 +2038,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
           <form className="stack-form" onSubmit={handleAddPurchaseGoal}>
             <input
               type="text"
-              placeholder="What do you want to buy?"
+              placeholder="What do you want to buy?" required
               value={purchaseGoalForm.title}
               onChange={(event) =>
                 setPurchaseGoalForm((current) => ({
@@ -2004,8 +2050,9 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
             <div className="split-row">
               <input
                 type="number"
+                step="0.01"
                 min="0"
-                placeholder="Cost"
+                placeholder="Cost" required
                 value={purchaseGoalForm.cost}
                 onChange={(event) =>
                   setPurchaseGoalForm((current) => ({
@@ -2016,6 +2063,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
               />
               <input
                 type="date"
+                required
                 value={purchaseGoalForm.targetDate}
                 onChange={(event) =>
                   setPurchaseGoalForm((current) => ({
@@ -2099,6 +2147,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
             <div className="split-row">
               <input
                 type="number"
+                step="0.01"
                 min="0"
                 placeholder="Current emergency savings"
                 value={emergencyFundForm.currentSavings}
@@ -2111,6 +2160,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
               />
               <input
                 type="number"
+                step="0.01"
                 min="0"
                 placeholder="Monthly essential expenses"
                 value={emergencyFundForm.monthlyEssentialExpenses}
@@ -2171,7 +2221,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
           <form className="stack-form" onSubmit={handleAddInvestment}>
             <input
               type="text"
-              placeholder="Account name"
+              placeholder="Account name" required
               value={investmentForm.title}
               onChange={(event) =>
                 setInvestmentForm((current) => ({
@@ -2200,8 +2250,9 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
             <div className="split-row">
               <input
                 type="number"
+                step="0.01"
                 min="0"
-                placeholder="Current balance"
+                placeholder="Current balance" required
                 value={investmentForm.balance}
                 onChange={(event) =>
                   setInvestmentForm((current) => ({
@@ -2212,6 +2263,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
               />
               <input
                 type="number"
+                step="0.01"
                 min="0"
                 placeholder="Monthly contribution"
                 value={investmentForm.monthlyContribution}
@@ -2227,6 +2279,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
               <span>Assumed annual return %</span>
               <input
                 type="number"
+                step="0.01"
                 min="0"
                 value={investmentForm.annualReturnRate}
                 onChange={(event) =>
@@ -2296,7 +2349,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
           <form className="stack-form" onSubmit={handleAddNetWorthItem}>
             <input
               type="text"
-              placeholder="Item name"
+              placeholder="Item name" required
               value={netWorthForm.title}
               onChange={(event) =>
                 setNetWorthForm((current) => ({ ...current, title: event.target.value }))
@@ -2305,8 +2358,9 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
             <div className="split-row">
               <input
                 type="number"
+                step="0.01"
                 min="0"
-                placeholder="Balance"
+                placeholder="Balance" required
                 value={netWorthForm.balance}
                 onChange={(event) =>
                   setNetWorthForm((current) => ({
@@ -2426,7 +2480,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
           <form className="stack-form" onSubmit={handleSaveScenario}>
             <input
               type="text"
-              placeholder="Scenario name"
+              placeholder="Scenario name" required
               value={scenarioForm.title}
               onChange={(event) =>
                 setScenarioForm((current) => ({ ...current, title: event.target.value }))
@@ -2435,6 +2489,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
             <div className="split-row">
               <input
                 type="number"
+                step="0.01"
                 placeholder="Income change %"
                 value={scenarioForm.incomeChangePercent}
                 onChange={(event) =>
@@ -2446,6 +2501,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
               />
               <input
                 type="number"
+                step="0.01"
                 placeholder="Rent increase per month"
                 value={scenarioForm.rentChange}
                 onChange={(event) =>
@@ -2459,6 +2515,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
             <div className="split-row">
               <input
                 type="number"
+                step="0.01"
                 placeholder="Benefit change per paycheck"
                 value={scenarioForm.benefitChangePerPaycheck}
                 onChange={(event) =>
@@ -2470,6 +2527,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
               />
               <input
                 type="number"
+                step="0.01"
                 placeholder="401(k) change %"
                 value={scenarioForm.retirementContributionChangePercent}
                 onChange={(event) =>
@@ -2483,6 +2541,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
             <div className="split-row">
               <input
                 type="number"
+                step="0.01"
                 placeholder="Extra debt payment / month"
                 value={scenarioForm.extraDebtPayment}
                 onChange={(event) =>
@@ -2494,6 +2553,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
               />
               <input
                 type="number"
+                step="0.01"
                 placeholder="One-time purchase"
                 value={scenarioForm.oneTimePurchase}
                 onChange={(event) =>
@@ -2506,6 +2566,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
             </div>
             <input
               type="number"
+              step="0.01"
               placeholder="Investment contribution change / month"
               value={scenarioForm.investmentContributionChange}
               onChange={(event) =>

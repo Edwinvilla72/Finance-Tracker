@@ -4,8 +4,8 @@ A personal financial planning app for tracking spending, scheduling income and b
 
 ## What it does
 
-- **Dashboard**: cash position, health status, this-month cash flow, goal progress, and a transaction calendar.
-- **Cash Flow**: paychecks, take-home pay modeling (taxes, benefits, retirement), recurring bills, one-time transactions, and Plaid bank sync.
+- **Dashboard**: balance, this month's income, expenses, and net, plus the transaction calendar and upcoming items.
+- **Cash Flow**: paychecks (quick add, or estimated from salary, taxes, benefits, and retirement), recurring bills, one-time transactions, and Plaid bank sync.
 - **Goals**: purchase goals, a balance target, an emergency fund, and debt payoff plans, each with a feasibility verdict computed from projected cash flow.
   See [docs/GOALS.md](docs/GOALS.md) for the model.
 - **Scenarios**: baseline-versus-what-if comparisons for income, rent, benefits, debt, and investing changes.
@@ -30,6 +30,10 @@ npm run build    # typecheck and production build
 
 Supabase mode needs a `.env` with `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`.
 Without it, switch to local dev mode on the sign-in screen.
+
+Account verification emails redirect back to wherever the app is running (`window.location.origin`).
+For that link to work, add each app URL (for example `http://localhost:5173` and the production URL) to Supabase Dashboard → Authentication → URL Configuration → Redirect URLs.
+Expired or invalid verification links show their error message on the sign-in screen.
 
 ## Project layout
 

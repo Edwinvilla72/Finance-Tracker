@@ -3,30 +3,30 @@
 --------------------------------------------------------------------------- */
 
 .planner-shell {
-  width: min(1360px, calc(100% - 32px));
+  width: min(1280px, calc(100% - 40px));
   height: 100svh;
   margin: 0 auto;
-  padding: 84px 0 24px;
+  padding: 84px 0 28px;
   overflow: auto;
 }
 
 .page-stack {
   display: grid;
-  gap: 16px;
+  gap: 20px;
   align-content: start;
 }
 
 .page-grid-2col {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  gap: 20px;
   align-items: start;
 }
 
 .workspace-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.6fr) minmax(300px, 0.75fr);
-  gap: 16px;
+  grid-template-columns: minmax(0, 1.7fr) minmax(280px, 0.7fr);
+  gap: 20px;
   align-items: start;
 }
 
@@ -42,11 +42,11 @@
 }
 
 .auth-card {
-  width: min(440px, 100%);
-  padding: 28px;
+  width: min(420px, 100%);
+  padding: 32px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: 16px;
 }
 
 .auth-copy,
@@ -70,28 +70,28 @@
 .mode-toggle {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px;
+  gap: 2px;
   margin: 16px 0;
-  padding: 4px;
-  border: 1px solid var(--border);
+  padding: 2px;
   border-radius: var(--radius-md);
   background: var(--surface-inset);
 }
 
 .mode-toggle button {
-  min-height: 36px;
+  min-height: 34px;
   border-radius: var(--radius-sm);
   color: var(--muted-strong);
   background: transparent;
   cursor: pointer;
   font: inherit;
+  font-size: 0.9rem;
 }
 
 .mode-toggle button.selected {
   background: var(--surface);
-  border: 1px solid var(--border);
   color: var(--text);
   font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
 /* ---------------------------------------------------------------------------
@@ -108,45 +108,24 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 12px 22px;
+  padding: 12px 24px;
   z-index: 10;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
 
-.navbar-brand strong {
-  display: block;
+.navbar-brand {
   color: var(--text);
-  font-size: 1rem;
-}
-
-.mode-badge {
-  display: inline-flex;
-  align-items: center;
-  min-height: 20px;
-  margin-top: 4px;
-  padding: 0 8px;
-  border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent-strong);
-  font-size: 0.7rem;
-  font-weight: 700;
-}
-
-.eyebrow,
-.section-kicker {
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: var(--muted);
-  margin-bottom: 6px;
+  font-size: 1.02rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
 }
 
 .app-nav {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
 
 .desktop-nav {
@@ -158,9 +137,17 @@
   display: none;
 }
 
+.nav-segmented {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-md);
+  background: var(--surface-inset);
+}
+
 .icon-button {
-  width: 44px;
-  height: 44px;
+  width: 42px;
+  height: 42px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: var(--surface);
@@ -181,27 +168,44 @@
 }
 
 .nav-pill {
-  min-height: 38px;
+  min-height: 34px;
   padding: 0 14px;
-  border-radius: var(--radius-md);
-  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--muted-strong);
-  text-align: left;
+  text-align: center;
   cursor: pointer;
   font: inherit;
+  font-size: 0.9rem;
   font-weight: 500;
   white-space: nowrap;
 }
 
 .nav-pill:hover {
-  background: var(--surface-inset);
   color: var(--text);
 }
 
 .nav-pill.active {
-  background: var(--accent);
-  color: #fff;
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.nav-quiet {
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.88rem;
+  white-space: nowrap;
+}
+
+.nav-quiet:hover {
+  color: var(--text);
 }
 
 /* ---------------------------------------------------------------------------
@@ -209,10 +213,10 @@
 --------------------------------------------------------------------------- */
 
 .panel {
-  padding: 20px;
+  padding: 22px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: 16px;
 }
 
 .panel-header {
@@ -236,97 +240,90 @@
   color: var(--muted-strong);
 }
 
+.eyebrow,
+.section-kicker {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
 /* ---------------------------------------------------------------------------
-   Hero
+   Dashboard stat band
 --------------------------------------------------------------------------- */
 
-.hero-panel {
+.stat-band {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
-  gap: 20px;
-  align-items: stretch;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: 0;
+  overflow: hidden;
 }
 
-.hero-main {
-  display: grid;
-  gap: 10px;
-  align-content: start;
-  justify-items: start;
-}
-
-.hero-status-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.hero-status-row h1 {
-  margin-bottom: 0;
-}
-
-.balance-hero {
+.stat-block {
   display: grid;
   gap: 6px;
   align-content: center;
-  min-height: 140px;
-  padding: 20px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--accent-soft);
+  justify-items: start;
+  min-height: 116px;
+  padding: 20px 24px;
+  background: transparent;
   color: var(--text);
   text-align: left;
   font: inherit;
+  min-width: 0;
+}
+
+.stat-block + .stat-block {
+  border-left: 1px solid var(--border);
+}
+
+.stat-block span {
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+
+.stat-block strong {
+  color: var(--text);
+  font-size: clamp(1.5rem, 2.6vw, 2rem);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.stat-block-action {
   cursor: pointer;
 }
 
-.balance-hero:hover,
-.balance-hero:focus-visible {
-  border-color: var(--accent);
+.stat-block-action:hover,
+.stat-block-action:focus-visible {
+  background: var(--surface-muted);
   outline: none;
 }
 
-.balance-hero span {
-  color: var(--accent-strong);
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+.stat-block.balance-hero-approach {
+  background: var(--negative-soft);
 }
 
-.balance-hero strong {
-  color: var(--text);
-  font-size: clamp(1.9rem, 3.5vw, 2.6rem);
-  line-height: 1;
-}
-
-.balance-hero small {
-  color: var(--muted-strong);
-  font-size: 0.8rem;
-}
-
-.balance-hero-approach {
-  border-color: var(--negative);
-}
-
-.balance-hero-impact {
+.stat-block.balance-hero-impact {
   animation: balance-damage-hit 0.24s linear 1;
   background: var(--negative-soft);
-  border-color: var(--negative);
 }
 
-.balance-hero-resolve {
+.stat-block.balance-hero-resolve {
   animation: balance-damage-settle 0.28s ease-out 1;
   background: var(--negative-soft);
-  border-color: var(--negative);
 }
 
-.balance-hero-impact strong,
-.balance-hero-resolve strong {
+.stat-block.balance-hero-impact strong,
+.stat-block.balance-hero-resolve strong {
   color: var(--negative);
 }
 
 /* ---------------------------------------------------------------------------
-   Stat rows
+   Stat rows (embedded on other pages)
 --------------------------------------------------------------------------- */
 
 .stat-row {
@@ -343,9 +340,9 @@
   display: grid;
   gap: 4px;
   align-content: start;
-  padding: 14px;
+  padding: 14px 16px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   background: var(--surface);
   color: var(--text);
   text-align: left;
@@ -355,6 +352,7 @@
 
 .stat-row-embedded .stat-card {
   background: var(--surface-muted);
+  border-color: transparent;
 }
 
 button.stat-card {
@@ -362,26 +360,26 @@ button.stat-card {
 }
 
 button.stat-card:hover {
-  border-color: var(--accent);
+  border-color: var(--border-strong);
 }
 
 .stat-card span {
   color: var(--muted);
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 0.8rem;
+  font-weight: 500;
 }
 
 .stat-card strong {
   color: var(--text);
   font-size: 1.25rem;
+  font-weight: 650;
   line-height: 1.15;
+  font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
 
 .stat-card small {
-  color: var(--muted-strong);
+  color: var(--muted);
   font-size: 0.78rem;
 }
 
@@ -395,8 +393,8 @@ button.stat-card:hover {
   min-height: 24px;
   padding: 2px 10px;
   border-radius: 999px;
-  font-size: 0.76rem;
-  font-weight: 700;
+  font-size: 0.78rem;
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -426,7 +424,7 @@ button.stat-card:hover {
 }
 
 .progress-track {
-  height: 8px;
+  height: 7px;
   border-radius: 999px;
   background: var(--surface-inset);
   overflow: hidden;
@@ -461,7 +459,7 @@ button.stat-card:hover {
 .goal-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 16px;
+  gap: 20px;
 }
 
 .goal-card {
@@ -479,35 +477,12 @@ button.stat-card:hover {
 
 .goal-card-header strong {
   font-size: 1.02rem;
+  font-weight: 600;
 }
 
 .goal-meta {
-  color: var(--muted-strong);
-  font-size: 0.85rem;
-}
-
-.goal-strip {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 12px;
-}
-
-.goal-card-compact {
-  display: grid;
-  gap: 8px;
-  align-content: start;
-  padding: 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface-muted);
-  color: var(--text);
-  text-align: left;
-  font: inherit;
-  cursor: pointer;
-}
-
-.goal-card-compact:hover {
-  border-color: var(--accent);
+  color: var(--muted);
+  font-size: 0.86rem;
 }
 
 .goal-progress {
@@ -529,29 +504,26 @@ button.stat-card:hover {
 .goal-facts > div {
   display: grid;
   gap: 2px;
-  padding: 10px;
-  border: 1px solid var(--border);
+  padding: 10px 12px;
   border-radius: var(--radius-md);
   background: var(--surface-muted);
 }
 
 .goal-facts span {
   color: var(--muted);
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-size: 0.75rem;
+  font-weight: 500;
 }
 
 .goal-facts strong {
   color: var(--text);
   font-size: 0.95rem;
+  font-weight: 600;
 }
 
 .goal-guidance {
-  padding: 12px;
-  border-left: 3px solid var(--accent);
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
   background: var(--surface-muted);
   color: var(--muted-strong);
   font-size: 0.9rem;
@@ -563,7 +535,6 @@ button.stat-card:hover {
 
 .line-list {
   display: grid;
-  gap: 8px;
 }
 
 .line-item {
@@ -571,32 +542,37 @@ button.stat-card:hover {
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
+  padding: 12px 2px;
+}
+
+.line-item + .line-item {
+  border-top: 1px solid var(--border);
+}
+
+.line-item strong {
+  font-weight: 600;
 }
 
 .line-item p {
   color: var(--muted);
-  font-size: 0.82rem;
+  font-size: 0.84rem;
 }
 
 .line-item-side {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   white-space: nowrap;
 }
 
 .line-item-side span {
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 .callout {
   margin-bottom: 14px;
   padding: 12px 14px;
-  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface-muted);
   color: var(--muted-strong);
@@ -622,7 +598,7 @@ button.stat-card:hover {
 .comparison-table {
   display: grid;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   overflow: hidden;
 }
 
@@ -639,30 +615,26 @@ button.stat-card:hover {
   border-top: 0;
 }
 
-.comparison-row:nth-child(even) {
-  background: var(--surface-muted);
-}
-
 .comparison-row span {
   color: var(--muted-strong);
-  font-size: 0.85rem;
+  font-size: 0.86rem;
 }
 
 .comparison-row strong {
   font-size: 0.9rem;
+  font-weight: 600;
   text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .comparison-head {
-  background: var(--surface-inset);
+  background: var(--surface-muted);
 }
 
 .comparison-head span {
   color: var(--muted);
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 0.78rem;
+  font-weight: 600;
 }
 
 .comparison-head span:not(:first-child) {
@@ -681,6 +653,7 @@ button.stat-card:hover {
   color: #fff;
   cursor: pointer;
   font: inherit;
+  font-size: 0.92rem;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -700,12 +673,12 @@ button.stat-card:hover {
   color: var(--text);
   cursor: pointer;
   font: inherit;
+  font-size: 0.92rem;
 }
 
 .ghost-button:hover,
 .month-controls button:hover,
 .stack-form button:hover {
-  border-color: var(--border-strong);
   background: var(--surface-muted);
 }
 
@@ -736,7 +709,7 @@ button.stat-card:hover {
 .calendar-card {
   display: grid;
   grid-template-rows: auto auto 1fr;
-  padding: 16px;
+  padding: 18px;
 }
 
 .calendar-header,
@@ -745,7 +718,6 @@ button.stat-card:hover {
 .modal-list-row,
 .row-actions,
 .debt-row,
-.sidebar-header,
 .upcoming-row {
   display: flex;
   justify-content: space-between;
@@ -753,14 +725,28 @@ button.stat-card:hover {
 }
 
 .calendar-header,
-.modal-header,
-.sidebar-header {
-  align-items: flex-start;
-  margin-bottom: 10px;
+.modal-header {
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.calendar-header h2 {
+  font-size: 1.2rem;
 }
 
 .month-controls {
   align-items: center;
+  gap: 8px;
+}
+
+.month-controls button {
+  width: 36px;
+  min-height: 36px;
+  padding: 0;
+  border-radius: 999px;
+  font-size: 1.2rem;
+  line-height: 1;
+  color: var(--accent);
 }
 
 .weekday-row,
@@ -777,23 +763,24 @@ button.stat-card:hover {
 .weekday-row {
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 6px;
-  margin-bottom: 4px;
-  font-size: 0.72rem;
+  margin-bottom: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
   color: var(--muted);
 }
 
 .calendar-grid {
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 6px;
-  grid-auto-rows: minmax(100px, auto);
+  grid-auto-rows: minmax(96px, auto);
 }
 
 .day-cell {
   min-height: 0;
-  padding: 7px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--surface);
+  padding: 8px;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  background: var(--surface-muted);
   display: grid;
   align-content: start;
   gap: 4px;
@@ -804,35 +791,32 @@ button.stat-card:hover {
 }
 
 .day-cell:hover {
-  border-color: var(--accent);
+  border-color: var(--border-strong);
 }
 
 .empty-day {
   background: transparent;
-  border-style: dashed;
-  opacity: 0.35;
   cursor: default;
 }
 
 .selected-day {
   background: var(--accent-soft);
-  border-color: var(--accent);
 }
 
 .today-cell {
-  border-color: var(--accent);
-  box-shadow: inset 0 0 0 1px var(--accent);
+  box-shadow: inset 0 0 0 2px var(--accent);
 }
 
 .day-number {
   color: var(--text);
   font-weight: 600;
-  font-size: 0.78rem;
+  font-size: 0.8rem;
 }
 
 .day-net {
-  font-size: 0.68rem;
+  font-size: 0.7rem;
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 .day-net.positive {
@@ -845,8 +829,8 @@ button.stat-card:hover {
 
 .day-balance,
 .day-preview {
-  font-size: 0.6rem;
-  line-height: 1.15;
+  font-size: 0.62rem;
+  line-height: 1.2;
   overflow-wrap: anywhere;
   color: var(--muted);
 }
@@ -863,12 +847,12 @@ button.stat-card:hover {
   grid-auto-flow: column;
   justify-content: start;
   gap: 5px;
-  min-height: 8px;
+  min-height: 7px;
 }
 
 .indicator-dot {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 999px;
 }
 
@@ -881,7 +865,7 @@ button.stat-card:hover {
 }
 
 .indicator-dot.transfer {
-  background: #5f75d1;
+  background: var(--accent);
 }
 
 .indicator-dot.debt {
@@ -894,66 +878,45 @@ button.stat-card:hover {
 
 .upcoming-card {
   display: grid;
-  gap: 18px;
+  gap: 4px;
   align-content: start;
-  padding: 16px;
-}
-
-.sidebar-section {
-  display: grid;
-  grid-template-rows: auto 1fr;
+  padding: 18px;
 }
 
 .upcoming-list {
-  gap: 8px;
-  max-height: 320px;
-  overflow: auto;
-}
-
-.debt-summary-list {
-  display: grid;
-  gap: 8px;
-  max-height: 320px;
+  max-height: 560px;
   overflow: auto;
 }
 
 .upcoming-row {
-  align-items: flex-start;
-  padding: 10px 12px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  background: var(--surface);
+  align-items: center;
+  width: 100%;
+  padding: 12px 2px;
+  background: transparent;
+  border-radius: 0;
   text-align: left;
   cursor: pointer;
 }
 
-.upcoming-row:hover {
-  border-color: var(--accent);
+.upcoming-row + .upcoming-row {
+  border-top: 1px solid var(--border);
+}
+
+.upcoming-row:hover strong {
+  color: var(--accent);
+}
+
+.upcoming-row strong {
+  font-weight: 600;
 }
 
 .upcoming-row p {
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   color: var(--muted);
 }
 
-.debt-summary-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: flex-start;
-  padding: 10px 12px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  background: var(--surface);
-}
-
-.debt-summary-row p {
-  font-size: 0.78rem;
-  color: var(--muted);
-}
-
-.upcoming-amount {
-  text-align: right;
+.upcoming-row .day-net {
+  font-size: 0.9rem;
 }
 
 /* ---------------------------------------------------------------------------
@@ -963,7 +926,7 @@ button.stat-card:hover {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(23, 34, 47, 0.5);
+  background: rgba(0, 0, 0, 0.4);
   border: 0;
   z-index: 20;
 }
@@ -985,8 +948,7 @@ button.stat-card:hover {
   overflow-y: auto;
   pointer-events: auto;
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: 16px;
 }
 
 .modal-intro {
@@ -997,6 +959,10 @@ button.stat-card:hover {
 .modal-list,
 .upcoming-list {
   gap: 12px;
+}
+
+.upcoming-list {
+  gap: 0;
 }
 
 .debt-ledger-list {
@@ -1045,6 +1011,7 @@ button.stat-card:hover {
   border: 1px solid var(--border);
   background: var(--surface-muted);
   color: var(--text);
+  font-size: 0.95rem;
 }
 
 .money-input-row {
@@ -1063,7 +1030,7 @@ button.stat-card:hover {
 .stack-form select,
 .month-controls button,
 .ghost-button {
-  font: inherit;
+  font-family: inherit;
 }
 
 .money-input-row input {
@@ -1117,6 +1084,7 @@ button.stat-card:hover {
   color: var(--text);
   cursor: pointer;
   font: inherit;
+  font-size: 0.92rem;
 }
 
 .weekday-chip:hover {
@@ -1143,22 +1111,20 @@ button.stat-card:hover {
 .status-strip > div {
   padding: 14px;
   border-radius: var(--radius-md);
-  border: 1px solid var(--border);
   background: var(--surface-muted);
 }
 
 .status-strip span {
   color: var(--muted);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-size: 0.78rem;
+  font-weight: 500;
 }
 
 .status-strip strong {
   display: block;
   margin-top: 4px;
   color: var(--text);
+  font-variant-numeric: tabular-nums;
 }
 
 .estimate-strip {
@@ -1174,7 +1140,6 @@ button.stat-card:hover {
 
 .estimate-breakdown > div {
   padding: 12px;
-  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface-muted);
 }
@@ -1182,22 +1147,20 @@ button.stat-card:hover {
 .estimate-breakdown span {
   display: block;
   color: var(--muted);
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-size: 0.75rem;
+  font-weight: 500;
 }
 
 .estimate-breakdown strong {
   display: block;
   margin-top: 6px;
   color: var(--text);
+  font-variant-numeric: tabular-nums;
 }
 
 .meta-pill {
   padding: 12px 14px;
   border-radius: var(--radius-md);
-  border: 1px solid var(--border);
   background: var(--surface-muted);
 }
 
@@ -1229,7 +1192,6 @@ button.stat-card:hover {
   align-items: flex-start;
   padding: 14px;
   border-radius: var(--radius-md);
-  border: 1px solid var(--border);
   background: var(--surface-muted);
 }
 
@@ -1246,6 +1208,7 @@ button.stat-card:hover {
   display: block;
   color: var(--text);
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 .payoff-helper {
@@ -1253,7 +1216,6 @@ button.stat-card:hover {
   gap: 8px;
   padding: 14px;
   border-radius: var(--radius-md);
-  border: 1px solid var(--border);
   background: var(--surface-muted);
 }
 
@@ -1285,23 +1247,21 @@ button.stat-card:hover {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   padding: 12px;
-  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface-muted);
 }
 
 .scenario-row span {
   color: var(--muted);
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-size: 0.75rem;
+  font-weight: 500;
 }
 
 .scenario-row strong {
   display: block;
   margin-top: 4px;
   color: var(--text);
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---------------------------------------------------------------------------
@@ -1328,12 +1288,12 @@ button.stat-card:hover {
 
 .bar-row span {
   color: var(--muted);
-  font-size: 0.78rem;
-  font-weight: 600;
+  font-size: 0.8rem;
+  font-weight: 500;
 }
 
 .bar-track {
-  height: 10px;
+  height: 9px;
   overflow: hidden;
   border-radius: 999px;
   background: var(--surface-inset);
@@ -1359,8 +1319,10 @@ button.stat-card:hover {
 
 .bar-row strong {
   color: var(--text);
-  font-size: 0.82rem;
+  font-size: 0.84rem;
+  font-weight: 600;
   text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---------------------------------------------------------------------------
@@ -1378,11 +1340,11 @@ button.stat-card:hover {
 .damage-overlay-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(23, 34, 47, 0.6);
+  background: rgba(0, 0, 0, 0.55);
 }
 
 .damage-overlay-impact .damage-overlay-backdrop {
-  background: rgba(23, 34, 47, 0.68);
+  background: rgba(0, 0, 0, 0.62);
 }
 
 .damage-overlay-content {
@@ -1412,19 +1374,19 @@ button.stat-card:hover {
 
 .damage-overlay-label {
   color: rgba(255, 255, 255, 0.72);
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.22em;
+  font-size: 0.82rem;
+  font-weight: 600;
   opacity: 0;
-  text-transform: uppercase;
   animation: damage-fade-up 0.45s 0.08s ease-out forwards;
 }
 
 .damage-overlay-total {
   color: #fff;
-  font-size: clamp(2.9rem, 8vw, 5.8rem);
+  font-size: clamp(2.9rem, 8vw, 5.4rem);
+  font-weight: 650;
   line-height: 0.96;
   opacity: 0;
+  font-variant-numeric: tabular-nums;
   animation: damage-fade-up 0.5s 0.14s ease-out forwards;
 }
 
@@ -1441,14 +1403,13 @@ button.stat-card:hover {
   left: 50%;
   min-width: 120px;
   padding: 12px 16px;
-  border: 1px solid var(--negative);
   border-radius: 999px;
   background: var(--negative-soft);
   color: var(--negative);
   font-size: 1.18rem;
-  font-weight: 800;
-  letter-spacing: 0.04em;
+  font-weight: 700;
   text-align: center;
+  font-variant-numeric: tabular-nums;
   transform: translate(-50%, 0) scale(0.78);
   animation: damage-projectile-flight 0.9s cubic-bezier(0.2, 0.9, 0.24, 1) forwards;
 }
@@ -1459,7 +1420,7 @@ button.stat-card:hover {
   left: 50%;
   width: clamp(130px, 18vw, 220px);
   aspect-ratio: 1;
-  border: 3px solid var(--negative-soft);
+  border: 3px solid rgba(255, 255, 255, 0.7);
   border-radius: 999px;
   opacity: 0;
   transform: translate(-50%, -50%);
@@ -1576,10 +1537,25 @@ button.stat-card:hover {
     overflow: visible;
   }
 
-  .hero-panel,
   .page-grid-2col,
   .workspace-grid {
     grid-template-columns: 1fr;
+  }
+
+  .stat-band {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stat-band .stat-block + .stat-block {
+    border-left: 0;
+  }
+
+  .stat-band .stat-block:nth-child(even) {
+    border-left: 1px solid var(--border);
+  }
+
+  .stat-band .stat-block:nth-child(n + 3) {
+    border-top: 1px solid var(--border);
   }
 
   .stat-row {
@@ -1594,7 +1570,7 @@ button.stat-card:hover {
 @media (max-width: 760px) {
   .planner-shell {
     width: calc(100% - 20px);
-    padding-top: 80px;
+    padding-top: 76px;
     padding-bottom: 20px;
     height: auto;
     overflow: visible;
@@ -1624,11 +1600,28 @@ button.stat-card:hover {
     gap: 8px;
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
+    border-radius: 16px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+  }
+
+  .app-nav.is-open .nav-pill.active {
+    background: var(--surface-inset);
+    box-shadow: none;
+  }
+
+  .stat-band {
+    grid-template-columns: 1fr;
+  }
+
+  .stat-band .stat-block {
+    border-left: 0 !important;
+  }
+
+  .stat-band .stat-block + .stat-block {
+    border-top: 1px solid var(--border);
   }
 
   .stat-row,
-  .goal-strip,
   .goal-facts {
     grid-template-columns: 1fr;
   }
@@ -1647,8 +1640,6 @@ button.stat-card:hover {
     flex-direction: column;
   }
 
-  .weekday-row,
-  .calendar-grid,
   .split-row,
   .essential-grid,
   .estimate-breakdown,
@@ -1656,6 +1647,30 @@ button.stat-card:hover {
   .bar-row,
   .status-strip {
     grid-template-columns: 1fr;
+  }
+
+  /* Keep the 7-column month grid on phones; drop the per-day detail lines. */
+  .calendar-grid {
+    gap: 3px;
+    grid-auto-rows: minmax(52px, auto);
+  }
+
+  .calendar-card {
+    padding: 12px;
+  }
+
+  .day-cell {
+    padding: 4px;
+    gap: 2px;
+  }
+
+  .day-balance,
+  .day-preview {
+    display: none;
+  }
+
+  .day-net {
+    font-size: 0.58rem;
   }
 
   .comparison-row {
@@ -1667,15 +1682,23 @@ button.stat-card:hover {
   }
 
   .calendar-header,
-  .month-controls,
   .modal-header,
   .modal-list-row,
   .row-actions,
   .debt-row,
-  .upcoming-row,
-  .debt-summary-row,
   .line-item {
     flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .month-controls {
+    flex-direction: row;
+  }
+
+  .upcoming-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
   }
 
   .line-item-side {

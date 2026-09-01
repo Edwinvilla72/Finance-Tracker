@@ -1,13 +1,12 @@
 import type { Dispatch, SetStateAction } from 'react'
 
 import { getSignedAmount } from '../../calculations/cashFlow'
-import { getCadenceLabel, getRecommendedPayment } from '../../calculations/debtPayoff'
-import type { CalendarOccurrence, DebtPlan, TransactionType } from '../../types/finance'
+import type { CalendarOccurrence, TransactionType } from '../../types/finance'
 import { currency } from '../../utils/currency'
 import {
   formatDateKey,
-  formatLongDate,
   formatMonthLabel,
+  formatShortDate,
   weekdayLabels,
 } from '../../utils/dates'
 
@@ -15,12 +14,10 @@ type CalendarPanelProps = {
   allOccurrences: CalendarOccurrence[]
   calendarDays: Array<Date | null>
   currentMonth: Date
-  debtPlans: DebtPlan[]
   openDay: (dateKey: string) => void
   projectedBalance: (targetDateKey: string) => number
   selectedDateKey: string
   setCurrentMonth: Dispatch<SetStateAction<Date>>
-  today: Date
   todayKey: string
   upcomingTransactions: CalendarOccurrence[]
 }
@@ -29,12 +26,10 @@ export function CalendarPanel({
   allOccurrences,
   calendarDays,
   currentMonth,
-  debtPlans,
   openDay,
   projectedBalance,
   selectedDateKey,
   setCurrentMonth,
-  today,
   todayKey,
   upcomingTransactions,
 }: CalendarPanelProps) {
@@ -42,31 +37,29 @@ export function CalendarPanel({
     <section className="workspace-grid">
       <section className="panel calendar-card">
         <div className="calendar-header">
-          <div>
-            <p className="section-kicker">Calendar</p>
-            <h2>Scheduled transactions and payments</h2>
-          </div>
+          <h2>{formatMonthLabel(currentMonth)}</h2>
           <div className="month-controls">
             <button
               type="button"
+              aria-label="Previous month"
               onClick={() =>
                 setCurrentMonth(
                   (current) => new Date(current.getFullYear(), current.getMonth() - 1, 1),
                 )
               }
             >
-              Prev
+              ‹
             </button>
-            <strong>{formatMonthLabel(currentMonth)}</strong>
             <button
               type="button"
+              aria-label="Next month"
               onClick={() =>
                 setCurrentMonth(
                   (current) => new Date(current.getFullYear(), current.getMonth() + 1, 1),
                 )
               }
             >
-              Next
+              ›
             </button>
           </div>
         </div>
@@ -123,7 +116,9 @@ export function CalendarPanel({
                     : ''}
                 </span>
                 <span className="day-balance">
-                  {dayItems.length > 0 ? `End day: ${currency.format(dayEndBalance)}` : ''}
+                  {dayItems.length > 0 && dateKey >= todayKey
+                    ? `End day: ${currency.format(dayEndBalance)}`
+                    : ''}
                 </span>
                 <span className="day-preview">
                   {dayItems.length > 0
@@ -139,97 +134,38 @@ export function CalendarPanel({
       </section>
 
       <aside className="panel upcoming-card">
-        <div className="sidebar-section">
-          <div className="sidebar-header">
-            <div>
-              <p className="section-kicker">Upcoming</p>
-              <h2>Next scheduled transactions</h2>
-            </div>
-          </div>
-
-          <div className="upcoming-list">
-            {upcomingTransactions.length === 0 ? (
-              <p className="empty-copy">No scheduled transactions yet.</p>
-            ) : (
-              upcomingTransactions.map((transaction) => (
-                <button
-                  type="button"
-                  key={transaction.id}
-                  className="upcoming-row"
-                  onClick={() => openDay(transaction.date)}
-                >
-                  <div>
-                    <strong>{transaction.title}</strong>
-                    <p>{formatLongDate(transaction.date)}</p>
-                  </div>
-                  <div className="upcoming-amount">
-                    <span
-                      className={`day-net ${
-                        getSignedAmount(transaction.amount, transaction.type) >= 0
-                          ? 'positive'
-                          : 'negative'
-                      }`}
-                    >
-                      {getSignedAmount(transaction.amount, transaction.type) >= 0
-                        ? '+'
-                        : '-'}
-                      {currency.format(transaction.amount)}
-                    </span>
-                    <p>{transaction.type}</p>
-                  </div>
-                </button>
-              ))
-            )}
-          </div>
+        <div className="calendar-header">
+          <h2>Upcoming</h2>
         </div>
 
-        <div className="sidebar-section">
-          <div className="sidebar-header">
-            <div>
-              <p className="section-kicker">Debt</p>
-              <h2>What you owe</h2>
-            </div>
-          </div>
-
-          <div className="debt-summary-list">
-            {debtPlans.length === 0 ? (
-              <p className="empty-copy">No debts tracked yet.</p>
-            ) : (
-              debtPlans.map((debt) => (
-                <div className="debt-summary-row" key={debt.id}>
-                  <div>
-                    <strong>{debt.title}</strong>
-                    <p>Due {formatLongDate(debt.dueDate)}</p>
-                  </div>
-                  <div className="upcoming-amount">
-                    <span className="day-net negative">
-                      -{currency.format(debt.balance)}
-                    </span>
-                    <p>
-                      {debt.payoffDate
-                        ? `Target ${formatLongDate(debt.payoffDate)}`
-                        : 'No payoff target'}
-                    </p>
-                    {debt.payoffDate && debt.payoffCadence ? (
-                      <p>
-                        {currency.format(
-                          Math.ceil(
-                            getRecommendedPayment(
-                              debt.balance,
-                              debt.payoffDate,
-                              debt.payoffCadence,
-                              today,
-                            ),
-                          ),
-                        )}{' '}
-                        {getCadenceLabel(debt.payoffCadence)}
-                      </p>
-                    ) : null}
-                  </div>
+        <div className="upcoming-list">
+          {upcomingTransactions.length === 0 ? (
+            <p className="empty-copy">No scheduled transactions yet.</p>
+          ) : (
+            upcomingTransactions.map((transaction) => (
+              <button
+                type="button"
+                key={transaction.id}
+                className="upcoming-row"
+                onClick={() => openDay(transaction.date)}
+              >
+                <div>
+                  <strong>{transaction.title}</strong>
+                  <p>{formatShortDate(transaction.date)}</p>
                 </div>
-              ))
-            )}
-          </div>
+                <span
+                  className={`day-net ${
+                    getSignedAmount(transaction.amount, transaction.type) >= 0
+                      ? 'positive'
+                      : 'negative'
+                  }`}
+                >
+                  {getSignedAmount(transaction.amount, transaction.type) >= 0 ? '+' : '-'}
+                  {currency.format(transaction.amount)}
+                </span>
+              </button>
+            ))
+          )}
         </div>
       </aside>
     </section>
