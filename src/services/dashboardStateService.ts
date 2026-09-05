@@ -1,7 +1,41 @@
-import type { PersistedState } from '../types/finance'
+import type { Assumptions, PersistedState } from '../types/finance'
 
 export const STORAGE_KEY = 'finance-tracker-dashboard'
 export const DASHBOARD_STATE_TABLE = 'dashboard_states'
+
+export const DEFAULT_ASSUMPTIONS: Assumptions = {
+  stateTaxRatePercent: 4,
+  projectionMonths: 6,
+}
+
+export const MIN_PROJECTION_MONTHS = 1
+export const MAX_PROJECTION_MONTHS = 24
+
+export function clampProjectionMonths(value: number) {
+  const rounded = Math.round(value)
+
+  if (!Number.isFinite(rounded) || rounded < MIN_PROJECTION_MONTHS) {
+    return DEFAULT_ASSUMPTIONS.projectionMonths
+  }
+
+  return Math.min(MAX_PROJECTION_MONTHS, rounded)
+}
+
+function normalizeAssumptions(value?: Partial<Assumptions> | null): Assumptions {
+  const stateTaxRatePercent = Number(
+    value?.stateTaxRatePercent ?? DEFAULT_ASSUMPTIONS.stateTaxRatePercent,
+  )
+
+  return {
+    stateTaxRatePercent:
+      Number.isFinite(stateTaxRatePercent) && stateTaxRatePercent >= 0
+        ? stateTaxRatePercent
+        : DEFAULT_ASSUMPTIONS.stateTaxRatePercent,
+    projectionMonths: clampProjectionMonths(
+      Number(value?.projectionMonths ?? DEFAULT_ASSUMPTIONS.projectionMonths),
+    ),
+  }
+}
 
 export function loadPersistedState(): PersistedState | null {
   try {
@@ -53,6 +87,8 @@ export function getDefaultPersistedState(): PersistedState {
     investmentAccounts: [],
     netWorthItems: [],
     scenarioPlans: [],
+    assumptions: { ...DEFAULT_ASSUMPTIONS },
+    setupGuideDismissed: false,
   }
 }
 
@@ -98,6 +134,8 @@ export function normalizePersistedState(
     investmentAccounts: value?.investmentAccounts ?? defaults.investmentAccounts,
     netWorthItems: value?.netWorthItems ?? defaults.netWorthItems,
     scenarioPlans: value?.scenarioPlans ?? defaults.scenarioPlans,
+    assumptions: normalizeAssumptions(value?.assumptions),
+    setupGuideDismissed: value?.setupGuideDismissed ?? defaults.setupGuideDismissed,
   }
 }
 
@@ -162,6 +200,12 @@ export function mergePersistedStates(
     ),
     netWorthItems: mergeById(remoteState.netWorthItems, localState.netWorthItems),
     scenarioPlans: mergeById(remoteState.scenarioPlans, localState.scenarioPlans),
+    assumptions:
+      JSON.stringify(localState.assumptions) !== JSON.stringify(DEFAULT_ASSUMPTIONS)
+        ? localState.assumptions
+        : remoteState.assumptions,
+    setupGuideDismissed:
+      localState.setupGuideDismissed || remoteState.setupGuideDismissed,
   }
 }
 

@@ -72,6 +72,11 @@ export type CalendarOccurrence = {
   category?: string
 }
 
+export type Assumptions = {
+  stateTaxRatePercent: number
+  projectionMonths: number
+}
+
 export type PersistedState = {
   currentBalanceInput: string
   bankBalanceSource: 'manual' | 'linked'
@@ -86,6 +91,8 @@ export type PersistedState = {
   investmentAccounts: InvestmentAccount[]
   netWorthItems: NetWorthItem[]
   scenarioPlans: ScenarioPlan[]
+  assumptions: Assumptions
+  setupGuideDismissed: boolean
 }
 
 export type FilingStatus = 'single' | 'married_joint' | 'married_separate' | 'head_of_household'

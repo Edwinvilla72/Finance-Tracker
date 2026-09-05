@@ -9,6 +9,7 @@ export type PaycheckEstimateInput = {
   filingStatus?: FilingStatus
   benefitElections?: BenefitElection[]
   retirementContributions?: RetirementContribution[]
+  stateTaxRate?: number
 }
 
 export type PaycheckEstimate = {
@@ -42,6 +43,7 @@ export function estimatePaycheck({
   filingStatus = 'single',
   benefitElections = [],
   retirementContributions = [],
+  stateTaxRate,
 }: PaycheckEstimateInput): PaycheckEstimate {
   const paychecksPerYear = PAYCHECKS_PER_YEAR[income.payFrequency]
   const annualGrossIncome = getAnnualGrossIncome(income)
@@ -73,6 +75,7 @@ export function estimatePaycheck({
     ficaExemptDeductions: preTaxDeductionsPerPaycheck * paychecksPerYear,
     state,
     filingStatus,
+    stateTaxRate,
   })
   const estimatedTaxPerPaycheck = taxes.totalEstimatedTax / paychecksPerYear
 

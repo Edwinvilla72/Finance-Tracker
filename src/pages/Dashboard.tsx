@@ -34,6 +34,7 @@ import { InsightsPage } from './dashboard/pages/InsightsPage'
 import { ScenariosPage } from './dashboard/pages/ScenariosPage'
 import { type ModalView, type PageView } from './dashboard/dashboardTypes'
 import {
+  clampProjectionMonths,
   clearPersistedState,
   DASHBOARD_STATE_TABLE,
   getDefaultPersistedState,
@@ -48,6 +49,7 @@ import type {
   LinkedBankTransaction,
 } from '../types/banking'
 import type {
+  Assumptions,
   CalendarOccurrence,
   DebtPlan,
   BenefitElection,
@@ -155,6 +157,12 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
   )
   const [scenarioPlans, setScenarioPlans] = useState<ScenarioPlan[]>(
     defaultState.scenarioPlans,
+  )
+  const [assumptions, setAssumptions] = useState<Assumptions>(
+    defaultState.assumptions,
+  )
+  const [setupGuideDismissed, setSetupGuideDismissed] = useState(
+    defaultState.setupGuideDismissed,
   )
   const [dayForm, setDayForm] = useState({
     title: '',
@@ -272,6 +280,7 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
   const [damageSequence, setDamageSequence] = useState<DamageSequence | null>(null)
   const damageTimeoutsRef = useRef<number[]>([])
 
+  const projectionMonths = clampProjectionMonths(assumptions.projectionMonths)
   const allOccurrences = useMemo(
     () =>
       buildCalendarOccurrences({
@@ -283,12 +292,14 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
         debtPlans,
         financePlan,
         purchaseGoals,
+        projectionMonths,
       }),
     [
       currentMonth,
       debtPlans,
       financePlan,
       paycheckRules,
+      projectionMonths,
       purchaseGoals,
       recurringTransactions,
       scheduledTransactions,
@@ -378,6 +389,7 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
       filingStatus: financialProfile.filingStatus,
       benefitElections: financialProfile.benefitElections,
       retirementContributions: financialProfile.retirementContributions,
+      stateTaxRate: assumptions.stateTaxRatePercent / 100,
     })
     : null
   const totalBenefitsPerPaycheck = financialProfile.benefitElections.reduce(
@@ -386,8 +398,10 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
   )
   const totalRetirementPerPaycheck =
     paycheckEstimate?.retirementContributionPerPaycheck ?? 0
-  const sixMonthProjection = projectedBalance(
-    formatDateKey(new Date(today.getFullYear(), today.getMonth() + 6, today.getDate())),
+  const horizonProjection = projectedBalance(
+    formatDateKey(
+      new Date(today.getFullYear(), today.getMonth() + projectionMonths, today.getDate()),
+    ),
   )
   const emergencyFundProgress = calculateEmergencyFundProgress(
     emergencyFundPlan.currentSavings,
@@ -449,7 +463,7 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
   const scenarioImpact = activeScenario
     ? projectScenarioImpact({
       monthlyNet,
-      sixMonthCash: sixMonthProjection,
+      sixMonthCash: horizonProjection,
       netPaycheck: paycheckEstimate?.estimatedNetPaycheck ?? nextPaycheck?.amount ?? 0,
       netWorth: netWorthSummary.netWorth,
       totalDebt,
@@ -463,17 +477,18 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
       oneTimePurchase: activeScenario.oneTimePurchase,
       investmentContributionChange: activeScenario.investmentContributionChange,
       paychecksPerMonth,
+      horizonMonths: projectionMonths,
     })
     : null
   const monthlyProjection = projectBalanceMonths(
     currentBalance,
     allOccurrences,
     today,
-    6,
+    projectionMonths,
   )
   const lastProjectionPoint = monthlyProjection[monthlyProjection.length - 1]
-  // Goal feasibility uses the average saving pace over the next six scheduled
-  // months, which is steadier than the currently viewed month's net.
+  // Goal feasibility uses the average saving pace over the projection horizon,
+  // which is steadier than the currently viewed month's net.
   const monthlySurplus = lastProjectionPoint
     ? (lastProjectionPoint.balance - currentBalance) / monthlyProjection.length
     : monthlyNet
@@ -501,6 +516,38 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
     today,
   })
   const goalPortfolio = summarizeGoalItems(goalItems, monthlySurplus)
+  const setupSteps = [
+    {
+      key: 'balance',
+      title: 'Set your current balance',
+      detail: 'Everything is projected from this number.',
+      done: currentBalanceInput.trim() !== '' || usingLinkedBalance,
+      modal: 'balanceEdit' as const,
+    },
+    {
+      key: 'paycheck',
+      title: 'Add your paycheck',
+      detail: 'Quick add, or estimate take-home from your salary.',
+      done: paycheckRules.length > 0,
+      modal: 'paycheck' as const,
+    },
+    {
+      key: 'bills',
+      title: 'Add rent and bills',
+      detail: 'Recurring costs make the forecast real.',
+      done: recurringTransactions.length > 0,
+      modal: 'essentials' as const,
+    },
+    {
+      key: 'goal',
+      title: 'Create a goal',
+      detail: 'Get a feasibility verdict against your cash flow.',
+      done: goalItems.length > 0,
+      modal: 'purchaseGoals' as const,
+    },
+  ]
+  const showSetupGuide =
+    !setupGuideDismissed && setupSteps.some((step) => !step.done)
 
   useEffect(() => {
     if (!userId) {
@@ -520,6 +567,8 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
       setInvestmentAccounts(localState.investmentAccounts)
       setNetWorthItems(localState.netWorthItems)
       setScenarioPlans(localState.scenarioPlans)
+      setAssumptions(localState.assumptions)
+      setSetupGuideDismissed(localState.setupGuideDismissed)
       setLinkedAccounts([])
       setLinkedTransactions([])
       setBankSyncError(null)
@@ -579,6 +628,8 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
       setInvestmentAccounts(hydratedState.investmentAccounts)
       setNetWorthItems(hydratedState.netWorthItems)
       setScenarioPlans(hydratedState.scenarioPlans)
+      setAssumptions(hydratedState.assumptions)
+      setSetupGuideDismissed(hydratedState.setupGuideDismissed)
 
       if (shouldBackfillLocal) {
         const { error: upsertError } = await supabaseClient
@@ -668,6 +719,8 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
       investmentAccounts,
       netWorthItems,
       scenarioPlans,
+      assumptions,
+      setupGuideDismissed,
     }
 
     const timeoutId = window.setTimeout(async () => {
@@ -705,6 +758,7 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
 
     return () => window.clearTimeout(timeoutId)
   }, [
+    assumptions,
     bankBalanceSource,
     currentBalanceInput,
     debtPlans,
@@ -719,6 +773,7 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
     saveAttempt,
     scenarioPlans,
     scheduledTransactions,
+    setupGuideDismissed,
     syncReady,
     userId,
   ])
@@ -939,6 +994,10 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
   function openDay(dateKey: string) {
     setSelectedDateKey(dateKey)
     setActiveModal('day')
+  }
+
+  function dismissSetupGuide() {
+    setSetupGuideDismissed(true)
   }
 
   function retryLoad() {
@@ -1592,6 +1651,10 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
             setActivePage(page)
             setNavOpen(false)
           }}
+          onOpenSettings={() => {
+            setNavOpen(false)
+            openModal('settings')
+          }}
           onRetrySave={retrySave}
           onSignOut={onSignOut}
           onToggleNav={() => setNavOpen((current) => !current)}
@@ -1639,7 +1702,10 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
                 monthlyIncome={monthlyIncome}
                 monthlyNet={monthlyNet}
                 monthlyOutflow={monthlyOutflow}
+                onDismissSetupGuide={dismissSetupGuide}
                 openModal={openModal}
+                setupSteps={setupSteps}
+                showSetupGuide={showSetupGuide}
               />
               <CalendarPanel
                 allOccurrences={allOccurrences}
@@ -1684,6 +1750,7 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
               goalPortfolio={goalPortfolio}
               monthlySurplus={monthlySurplus}
               openModal={openModal}
+              projectionMonths={projectionMonths}
               removeGoal={removeGoal}
             />
           ) : null}
@@ -1693,6 +1760,7 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
               activateScenario={activateScenario}
               activeScenario={activeScenario}
               openModal={openModal}
+              projectionMonths={projectionMonths}
               removeScenario={removeScenario}
               scenarioImpact={scenarioImpact}
               scenarioPlans={scenarioPlans}
@@ -1706,6 +1774,7 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
               monthlyProjection={monthlyProjection}
               netWorthSummary={netWorthSummary}
               openModal={openModal}
+              projectionMonths={projectionMonths}
               scenarioImpact={scenarioImpact}
               spendingTrend={spendingTrend}
               totalInvestmentBalance={totalInvestmentBalance}
@@ -1776,6 +1845,7 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
                 <DashboardModalContent
                   activeModal={activeModal}
                   activeScenario={activeScenario}
+                  assumptions={assumptions}
                   balanceDraft={balanceDraft}
                   bankBalanceSource={bankBalanceSource}
                   bankSyncError={bankSyncError}
@@ -1848,6 +1918,7 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
                   selectedDateKey={selectedDateKey}
                   selectedDayBalance={selectedDayBalance}
                   selectedDayTransactions={selectedDayTransactions}
+                  setAssumptions={setAssumptions}
                   setBalanceDraft={setBalanceDraft}
                   setBenefitForm={setBenefitForm}
                   setDayForm={setDayForm}

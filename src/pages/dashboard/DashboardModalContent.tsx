@@ -28,6 +28,7 @@ import {
 } from '../../calculations/debtPayoff'
 import { TAX_YEAR } from '../../calculations/taxes'
 import type {
+  Assumptions,
   BenefitElection,
   CalendarOccurrence,
   DebtPlan,
@@ -44,6 +45,10 @@ import type {
   ScheduledTransaction,
   TransactionType,
 } from '../../types/finance'
+import {
+  MAX_PROJECTION_MONTHS,
+  MIN_PROJECTION_MONTHS,
+} from '../../services/dashboardStateService'
 import type { ModalView } from './dashboardTypes'
 import { BankSyncModal } from './BankSyncModal'
 
@@ -209,6 +214,7 @@ type EmergencyFundProgress = {
 type DashboardModalContentProps = {
   activeModal: ModalView
   activeScenario: ScenarioPlan | null
+  assumptions: Assumptions
   balanceDraft: string
   bankBalanceSource: BankBalanceSource
   bankSyncError: string | null
@@ -309,6 +315,7 @@ type DashboardModalContentProps = {
   setRetirementForm: Dispatch<SetStateAction<RetirementForm>>
   setScenarioForm: Dispatch<SetStateAction<ScenarioForm>>
   setScenarioPlans: Dispatch<SetStateAction<ScenarioPlan[]>>
+  setAssumptions: Dispatch<SetStateAction<Assumptions>>
   setScheduledTransactions: Dispatch<SetStateAction<ScheduledTransaction[]>>
   today: Date
   totalBenefitsPerPaycheck: number
@@ -320,6 +327,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
   const {
     activeModal,
     activeScenario,
+    assumptions,
     balanceDraft,
     bankBalanceSource,
     bankSyncError,
@@ -417,6 +425,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
     setRetirementForm,
     setScenarioForm,
     setScenarioPlans,
+    setAssumptions,
     setScheduledTransactions,
     today,
     totalBenefitsPerPaycheck,
@@ -2442,6 +2451,67 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
               ))
             )}
           </div>
+        </>
+      )
+    }
+
+    if (activeModal === 'settings') {
+      return (
+        <>
+          <div className="modal-header">
+            <div>
+              <p className="eyebrow">Settings</p>
+              <h2>Planning assumptions</h2>
+            </div>
+            <button type="button" className="ghost-button" onClick={closeModal}>
+              Close
+            </button>
+          </div>
+          <p className="empty-copy modal-intro">
+            These assumptions shape every estimate and projection. Changes save
+            automatically.
+          </p>
+          <form className="stack-form" onSubmit={(event) => event.preventDefault()}>
+            <label className="field-stack">
+              <span>State income tax rate (%)</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={assumptions.stateTaxRatePercent}
+                onChange={(event) =>
+                  setAssumptions((current) => ({
+                    ...current,
+                    stateTaxRatePercent: Number(event.target.value),
+                  }))
+                }
+              />
+            </label>
+            <p className="empty-copy">
+              A flat estimate applied to income after pre-tax deductions. Ignored in
+              states with no income tax.
+            </p>
+            <label className="field-stack">
+              <span>Projection horizon (months)</span>
+              <input
+                type="number"
+                min={MIN_PROJECTION_MONTHS}
+                max={MAX_PROJECTION_MONTHS}
+                step="1"
+                value={assumptions.projectionMonths}
+                onChange={(event) =>
+                  setAssumptions((current) => ({
+                    ...current,
+                    projectionMonths: Number(event.target.value),
+                  }))
+                }
+              />
+            </label>
+            <p className="empty-copy">
+              How far ahead the balance forecast, goal feasibility, and scenarios look.
+              Between {MIN_PROJECTION_MONTHS} and {MAX_PROJECTION_MONTHS} months.
+            </p>
+          </form>
         </>
       )
     }

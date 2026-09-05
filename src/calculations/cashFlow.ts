@@ -39,7 +39,7 @@ export function getSignedAmount(amount: number, type: TransactionType) {
 
 // Recurring items must exist through at least this many months ahead so
 // balance projections and goal feasibility see the full schedule, not just
-// the visible month.
+// the visible month. Callers can widen it via the user's projection setting.
 export const PROJECTION_HORIZON_MONTHS = 6
 
 type OccurrenceInput = {
@@ -51,6 +51,7 @@ type OccurrenceInput = {
   debtPlans: DebtPlan[]
   financePlan: FinancePlan
   purchaseGoals?: PurchaseGoal[]
+  projectionMonths?: number
 }
 
 export function buildCalendarOccurrences({
@@ -62,6 +63,7 @@ export function buildCalendarOccurrences({
   debtPlans,
   financePlan,
   purchaseGoals = [],
+  projectionMonths = PROJECTION_HORIZON_MONTHS,
 }: OccurrenceInput) {
   const visibleMonthStart = startOfMonth(currentMonth)
   const currentMonthStart = startOfMonth(today)
@@ -81,7 +83,7 @@ export function buildCalendarOccurrences({
     financePlan.targetDate ? parseDateKey(financePlan.targetDate) : today,
     new Date(
       today.getFullYear(),
-      today.getMonth() + PROJECTION_HORIZON_MONTHS + 1,
+      today.getMonth() + Math.max(PROJECTION_HORIZON_MONTHS, projectionMonths) + 1,
       0,
     ),
     new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0),

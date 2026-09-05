@@ -14,6 +14,7 @@ export function compareNumberScenario({ baseline, scenario }: ScenarioComparison
 
 export type ScenarioProjectionInput = {
   monthlyNet: number
+  // Projected cash at the end of the horizon window (horizonMonths ahead).
   sixMonthCash: number
   netPaycheck: number
   netWorth: number
@@ -27,6 +28,7 @@ export type ScenarioProjectionInput = {
   oneTimePurchase: number
   investmentContributionChange: number
   paychecksPerMonth?: number
+  horizonMonths?: number
 }
 
 export function projectScenarioImpact({
@@ -44,6 +46,7 @@ export function projectScenarioImpact({
   oneTimePurchase,
   investmentContributionChange,
   paychecksPerMonth = 2,
+  horizonMonths = 6,
 }: ScenarioProjectionInput) {
   const paycheckIncomeDelta = netPaycheck * (incomeChangePercent / 100)
   const retirementDelta = netPaycheck * (retirementContributionChangePercent / 100)
@@ -57,13 +60,13 @@ export function projectScenarioImpact({
     investmentContributionChange
   const sixMonthScenario =
     sixMonthCash +
-    (monthlyScenario - monthlyNet) * 6 -
+    (monthlyScenario - monthlyNet) * horizonMonths -
     oneTimePurchase
-  const totalDebtScenario = Math.max(0, totalDebt - extraDebtPayment * 6)
+  const totalDebtScenario = Math.max(0, totalDebt - extraDebtPayment * horizonMonths)
   const netWorthScenario =
     netWorth +
     (sixMonthScenario - sixMonthCash) +
-    extraDebtPayment * 6 -
+    extraDebtPayment * horizonMonths -
     oneTimePurchase
   const investmentFiveYearScenario =
     investmentFiveYearValue + investmentContributionChange * 60

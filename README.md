@@ -10,6 +10,8 @@ A personal financial planning app for tracking spending, scheduling income and b
   See [docs/GOALS.md](docs/GOALS.md) for the model.
 - **Scenarios**: baseline-versus-what-if comparisons for income, rent, benefits, debt, and investing changes.
 - **Insights**: projected balance trend, spending mix, and scenario impact charts.
+- **Settings**: planning assumptions (flat state tax rate and the projection horizon) that flow through every estimate.
+- A dismissible setup guide walks new accounts through balance, paycheck, bills, and a first goal.
 
 ## Stack
 

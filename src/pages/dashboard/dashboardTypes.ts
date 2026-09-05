@@ -15,6 +15,7 @@ export type ModalView =
   | 'debt'
   | 'plan'
   | 'purchaseGoals'
+  | 'settings'
   | null
 
 export type PageView =

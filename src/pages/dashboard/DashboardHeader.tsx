@@ -7,6 +7,7 @@ type DashboardHeaderProps = {
   appMode?: 'local' | 'supabase'
   navOpen: boolean
   onModeChange?: (mode: 'local' | 'supabase') => void
+  onOpenSettings?: () => void
   onPageChange: (page: PageView) => void
   onRetrySave?: () => void
   onSignOut?: () => Promise<void> | void
@@ -20,6 +21,7 @@ export function DashboardHeader({
   appMode,
   navOpen,
   onModeChange,
+  onOpenSettings,
   onPageChange,
   onRetrySave,
   onSignOut,
@@ -37,6 +39,11 @@ export function DashboardHeader({
 
   const secondaryActions = (
     <>
+      {onOpenSettings ? (
+        <button type="button" className="nav-quiet" onClick={onOpenSettings}>
+          Settings
+        </button>
+      ) : null}
       {onModeChange ? (
         <button type="button" className="nav-quiet" onClick={handleModeToggle}>
           {appMode === 'local' ? 'Use Supabase' : 'Use local data'}

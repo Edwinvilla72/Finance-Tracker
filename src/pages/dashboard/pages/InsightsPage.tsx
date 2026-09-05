@@ -27,6 +27,7 @@ type InsightsPageProps = {
   monthlyProjection: MonthlyProjectionPoint[]
   netWorthSummary: NetWorthSummary
   openModal: (view: Exclude<ModalView, null>) => void
+  projectionMonths: number
   scenarioImpact?: ScenarioImpact | null
   spendingTrend: SpendingTrendPoint[]
   totalInvestmentBalance: number
@@ -38,6 +39,7 @@ export function InsightsPage({
   monthlyProjection,
   netWorthSummary,
   openModal,
+  projectionMonths,
   scenarioImpact,
   spendingTrend,
   totalInvestmentBalance,
@@ -54,7 +56,7 @@ export function InsightsPage({
     ? [
         ['Paycheck', scenarioImpact.netPaycheck.delta],
         ['Monthly', scenarioImpact.monthlyNet.delta],
-        ['6-month', scenarioImpact.sixMonthCash.delta],
+        [`${projectionMonths}-month`, scenarioImpact.sixMonthCash.delta],
         ['Net worth', scenarioImpact.netWorth.delta],
       ]
     : []

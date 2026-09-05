@@ -371,6 +371,71 @@ button.nav-status-error {
 }
 
 /* ---------------------------------------------------------------------------
+   Setup guide
+--------------------------------------------------------------------------- */
+
+.setup-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 10px;
+}
+
+.setup-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.setup-step:hover {
+  border-color: var(--accent);
+}
+
+.setup-step-mark {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--surface-inset);
+  color: var(--muted-strong);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.setup-step-done .setup-step-mark {
+  background: var(--positive-soft);
+  color: var(--positive);
+}
+
+.setup-step-body {
+  display: grid;
+  gap: 2px;
+}
+
+.setup-step-body strong {
+  font-weight: 600;
+}
+
+.setup-step-body span {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.setup-step-done .setup-step-body strong {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+/* ---------------------------------------------------------------------------
    Stat rows (embedded on other pages)
 --------------------------------------------------------------------------- */
 
@@ -1585,6 +1650,36 @@ button.stat-card:hover {
     overflow: visible;
   }
 
+  .navbar-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .desktop-nav {
+    display: none;
+  }
+
+  .app-nav.is-open {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 10px;
+    right: 10px;
+    padding: 12px;
+    display: grid;
+    gap: 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+    z-index: 11;
+  }
+
+  .app-nav.is-open .nav-pill.active {
+    background: var(--surface-inset);
+    box-shadow: none;
+  }
+
   .page-grid-2col,
   .workspace-grid {
     grid-template-columns: 1fr;
@@ -1626,35 +1721,6 @@ button.stat-card:hover {
 
   .app-navbar {
     padding: 10px 14px;
-  }
-
-  .navbar-toggle {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .desktop-nav {
-    display: none;
-  }
-
-  .app-nav.is-open {
-    position: absolute;
-    top: calc(100% + 8px);
-    left: 10px;
-    right: 10px;
-    padding: 12px;
-    display: grid;
-    gap: 8px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
-  }
-
-  .app-nav.is-open .nav-pill.active {
-    background: var(--surface-inset);
-    box-shadow: none;
   }
 
   .stat-band {

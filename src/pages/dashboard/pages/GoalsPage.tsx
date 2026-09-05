@@ -21,6 +21,7 @@ type GoalsPageProps = {
   goalPortfolio: GoalPortfolioSummary
   monthlySurplus: number
   openModal: (view: Exclude<ModalView, null>) => void
+  projectionMonths: number
   removeGoal: (kind: GoalItemKind, originId: number) => void
 }
 
@@ -93,6 +94,7 @@ export function GoalsPage({
   goalPortfolio,
   monthlySurplus,
   openModal,
+  projectionMonths,
   removeGoal,
 }: GoalsPageProps) {
   const untargetedDebts = debtPlans.filter((debt) => !debt.payoffDate)
@@ -120,7 +122,9 @@ export function GoalsPage({
               {monthlySurplus >= 0 ? '+' : '-'}
               {currency.format(Math.abs(Math.round(monthlySurplus)))}
             </strong>
-            <small>Average saving pace over the next 6 scheduled months</small>
+            <small>
+              Average saving pace over the next {projectionMonths} scheduled months
+            </small>
           </div>
           <div className="stat-card">
             <span>Committed to goals</span>

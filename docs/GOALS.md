@@ -6,8 +6,8 @@ The logic lives in `src/calculations/goals.ts` and is covered by `src/calculatio
 
 ## Inputs
 
-- **Monthly surplus**: the average saving pace over the next six scheduled months.
-  It is computed as `(projected balance in 6 months - current balance) / 6` from the calendar forecast.
+- **Monthly surplus**: the average saving pace over the projection horizon (configurable in Settings, default six months).
+  It is computed as `(projected balance at the horizon - current balance) / horizon months` from the calendar forecast.
   This is steadier than a single month's net, which swings with paycheck timing and one-time expenses.
 - **Projected balance at target date**: the calendar forecast projected to the goal's target date.
 - **Months until target**: whole months from today through the target month, minimum one.
@@ -48,7 +48,7 @@ The summary across all goals compares total required monthly saving with the mon
 
 ## Known limitations
 
-- The surplus window is fixed at six months and assumes the current schedule continues.
+- The surplus window assumes the current schedule continues through the projection horizon.
 - Purchase goals and the balance target both draw on the same projected cash, so several "funded" goals can overlap the same dollars.
   The portfolio's required-saving total avoids this for unfunded goals, but funded goals are not cross-checked against each other.
 - Debt interest (APR) is not part of the required payment pace on the Goals page.

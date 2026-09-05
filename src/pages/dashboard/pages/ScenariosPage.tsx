@@ -10,28 +10,30 @@ type ScenariosPageProps = {
   activateScenario: (id: number) => void
   activeScenario?: ScenarioPlan | null
   openModal: (view: Exclude<ModalView, null>) => void
+  projectionMonths: number
   removeScenario: (id: number) => void
   scenarioImpact?: ScenarioImpact | null
   scenarioPlans: ScenarioPlan[]
 }
 
-const comparisonLabels: Array<[keyof ScenarioImpact, string]> = [
-  ['netPaycheck', 'Net paycheck'],
-  ['monthlyNet', 'Monthly cash flow'],
-  ['sixMonthCash', '6-month cash'],
-  ['totalDebt', 'Debt after 6 months'],
-  ['netWorth', 'Net worth'],
-  ['investmentFiveYearValue', '5-year investments'],
-]
-
 export function ScenariosPage({
   activateScenario,
   activeScenario,
   openModal,
+  projectionMonths,
   removeScenario,
   scenarioImpact,
   scenarioPlans,
 }: ScenariosPageProps) {
+  const comparisonLabels: Array<[keyof ScenarioImpact, string]> = [
+    ['netPaycheck', 'Net paycheck'],
+    ['monthlyNet', 'Monthly cash flow'],
+    ['sixMonthCash', `${projectionMonths}-month cash`],
+    ['totalDebt', `Debt after ${projectionMonths} months`],
+    ['netWorth', 'Net worth'],
+    ['investmentFiveYearValue', '5-year investments'],
+  ]
+
   return (
     <>
       <section className="panel">
@@ -60,7 +62,8 @@ export function ScenariosPage({
               tone={scenarioImpact.sixMonthCash.delta >= 0 ? 'positive' : 'negative'}
             >
               {scenarioImpact.sixMonthCash.delta >= 0 ? '+' : '-'}
-              {currency.format(Math.abs(scenarioImpact.sixMonthCash.delta))} over 6 months
+              {currency.format(Math.abs(scenarioImpact.sixMonthCash.delta))} over{' '}
+              {projectionMonths} months
             </Badge>
           </div>
 
