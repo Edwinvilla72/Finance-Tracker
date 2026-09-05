@@ -26,6 +26,7 @@ import {
   getMonthlyAmountNeeded,
   getRecommendedPayment,
 } from '../../calculations/debtPayoff'
+import { TAX_YEAR } from '../../calculations/taxes'
 import type {
   BenefitElection,
   CalendarOccurrence,
@@ -944,7 +945,7 @@ export function DashboardModalContent(props: DashboardModalContentProps) {
           </div>
           <p className="empty-copy modal-intro">
             {usesTaxEstimate
-              ? 'Estimate take-home pay from salary, state, filing status, benefits, and retirement, then schedule the net amount as a paycheck. These are planning estimates, not tax advice.'
+              ? `Estimate take-home pay from salary, state, filing status, benefits, and retirement, then schedule the net amount as a paycheck. Estimates use ${TAX_YEAR} federal tax rules and are not tax advice.`
               : 'Add the amount that reaches your account and how often it arrives.'}
           </p>
           {usesTaxEstimate ? null : (

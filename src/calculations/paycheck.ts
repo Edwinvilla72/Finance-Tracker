@@ -68,6 +68,9 @@ export function estimatePaycheck({
   const taxes = estimateAnnualTaxes({
     annualGrossIncome,
     preTaxDeductions: annualPreTaxDeductions,
+    // Cafeteria-plan benefits skip FICA; traditional retirement contributions
+    // only skip federal income tax.
+    ficaExemptDeductions: preTaxDeductionsPerPaycheck * paychecksPerYear,
     state,
     filingStatus,
   })
