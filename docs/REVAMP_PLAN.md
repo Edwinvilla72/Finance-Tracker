@@ -12,6 +12,7 @@ Finance-Tracker is moving from a manual finance calendar into a personal financi
 6. Polish UX, validation, tests, documentation, loading states, error states, and financial disclaimers.
 7. Goal-centered revamp (issue 001, completed 2026-08-30): flat design system, page-first navigation instead of modal-first, a unified Goals page with per-goal and portfolio feasibility verdicts (see GOALS.md), inline lists on Cash Flow and Scenarios, inline charts on Insights, and vitest coverage for the goals engine.
 8. UX audit and Apple-style dashboard (issue 002, completed 2026-08-31): verified email links redirect back to the app with errors surfaced, one paycheck modal with a quick-add/salary-and-taxes toggle, recurring occurrences generated through the full projection horizon, native required validation on forms, cents supported in every money field, and a simplified dashboard (stat band, calendar, upcoming).
+9. Persistence trust (issue 003, completed 2026-09-05): a failed cloud load no longer lets autosave overwrite the cloud payload with defaults, load failures show a retryable error panel, hydration shows a skeleton, and a navbar indicator reports save status with retry for signed-in sessions.
 
 ## Architecture Direction
 

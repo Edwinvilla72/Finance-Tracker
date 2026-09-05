@@ -208,6 +208,54 @@
   color: var(--text);
 }
 
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.nav-status {
+  padding: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+button.nav-status-error {
+  color: var(--negative);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ---------------------------------------------------------------------------
+   Loading skeleton
+--------------------------------------------------------------------------- */
+
+.skeleton-block {
+  animation: skeleton-pulse 1.6s ease-in-out infinite;
+}
+
+.skeleton-stat-band {
+  min-height: 118px;
+}
+
+.skeleton-calendar {
+  min-height: 460px;
+}
+
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
+}
+
 /* ---------------------------------------------------------------------------
    Panels and headers
 --------------------------------------------------------------------------- */

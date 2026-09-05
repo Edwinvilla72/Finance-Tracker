@@ -102,6 +102,13 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
   const [activeModal, setActiveModal] = useState<ModalView>(null)
   const [activePage, setActivePage] = useState<PageView>('dashboard')
   const [syncReady, setSyncReady] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [loadAttempt, setLoadAttempt] = useState(0)
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>(
+    'idle',
+  )
+  const [saveAttempt, setSaveAttempt] = useState(0)
+  const saveSequenceRef = useRef(0)
   const [currentMonth, setCurrentMonth] = useState(startOfMonth(today))
   const [selectedDateKey, setSelectedDateKey] = useState(todayKey)
   const [currentBalanceInput, setCurrentBalanceInput] = useState(
@@ -541,8 +548,10 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
       }
 
       if (error && error.code !== 'PGRST116') {
+        // Do not mark the app ready: autosave with default state would
+        // overwrite the user's real cloud payload.
         console.error('Failed to load dashboard state', error)
-        setSyncReady(true)
+        setLoadError(error.message || 'The request to Supabase failed.')
         return
       }
 
@@ -599,7 +608,7 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
     return () => {
       active = false
     }
-  }, [userId])
+  }, [userId, loadAttempt])
 
   useEffect(() => {
     if (!userId || !supabase) {
@@ -667,6 +676,12 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
         return
       }
 
+      // Overlapping saves can resolve out of order; only the latest one may
+      // report status.
+      const saveId = ++saveSequenceRef.current
+
+      setSaveState('saving')
+
       const { error } = await supabase.from(DASHBOARD_STATE_TABLE).upsert(
         {
           user_id: userId,
@@ -675,9 +690,17 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
         { onConflict: 'user_id' },
       )
 
+      if (saveId !== saveSequenceRef.current) {
+        return
+      }
+
       if (error) {
         console.error('Failed to save dashboard state', error)
+        setSaveState('error')
+        return
       }
+
+      setSaveState('saved')
     }, 400)
 
     return () => window.clearTimeout(timeoutId)
@@ -693,6 +716,7 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
     paycheckRules,
     purchaseGoals,
     recurringTransactions,
+    saveAttempt,
     scenarioPlans,
     scheduledTransactions,
     syncReady,
@@ -915,6 +939,15 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
   function openDay(dateKey: string) {
     setSelectedDateKey(dateKey)
     setActiveModal('day')
+  }
+
+  function retryLoad() {
+    setLoadError(null)
+    setLoadAttempt((current) => current + 1)
+  }
+
+  function retrySave() {
+    setSaveAttempt((current) => current + 1)
   }
 
   function removeGoal(kind: GoalItemKind, originId: number) {
@@ -1559,11 +1592,38 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
             setActivePage(page)
             setNavOpen(false)
           }}
+          onRetrySave={retrySave}
           onSignOut={onSignOut}
           onToggleNav={() => setNavOpen((current) => !current)}
+          saveState={userId && supabase ? saveState : null}
           userEmail={userEmail}
         />
 
+        {loadError ? (
+          <div className="page-stack">
+            <section className="panel">
+              <div className="empty-state">
+                <h2>Couldn't load your data</h2>
+                <p className="empty-copy">
+                  {loadError} Nothing is saved while loading fails, so your cloud
+                  data stays intact.
+                </p>
+                <button type="button" className="primary-action" onClick={retryLoad}>
+                  Try again
+                </button>
+              </div>
+            </section>
+          </div>
+        ) : null}
+
+        {!loadError && !syncReady ? (
+          <div className="page-stack" aria-label="Loading your data">
+            <section className="panel skeleton-block skeleton-stat-band" />
+            <section className="panel skeleton-block skeleton-calendar" />
+          </div>
+        ) : null}
+
+        {!loadError && syncReady ? (
         <div className="page-stack">
           {activePage === 'dashboard' ? (
             <>
@@ -1652,6 +1712,7 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
             />
           ) : null}
         </div>
+        ) : null}
       </main>
 
       <AnimatePresence>
