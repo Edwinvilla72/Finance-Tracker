@@ -7,11 +7,11 @@ import type { ModalView } from '../dashboardTypes'
 type ScenarioImpact = ReturnType<typeof projectScenarioImpact>
 
 type ScenariosPageProps = {
-  activateScenario: (id: number) => void
+  activateScenario: (id: string) => void
   activeScenario?: ScenarioPlan | null
   openModal: (view: Exclude<ModalView, null>) => void
   projectionMonths: number
-  removeScenario: (id: number) => void
+  removeScenario: (id: string) => void
   scenarioImpact?: ScenarioImpact | null
   scenarioPlans: ScenarioPlan[]
 }

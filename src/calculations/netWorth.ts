@@ -1,5 +1,5 @@
 export type NetWorthItem = {
-  id: number
+  id: string
   name: string
   balance: number
 }

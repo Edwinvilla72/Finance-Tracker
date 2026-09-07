@@ -5,7 +5,7 @@ import type { RecurringTransaction } from '../types/finance'
 const today = new Date(2026, 7, 31)
 
 const rent: RecurringTransaction = {
-  id: 1,
+  id: '1',
   title: 'Rent',
   amount: 1200,
   frequency: 'monthly',
@@ -43,7 +43,7 @@ describe('buildCalendarOccurrences horizon', () => {
   it('extends the horizon to cover purchase goal target dates', () => {
     const occurrences = buildWith({
       purchaseGoals: [
-        { id: 9, title: 'Trip', cost: 3000, targetDate: '2027-08-15' },
+        { id: '9', title: 'Trip', cost: 3000, targetDate: '2027-08-15' },
       ],
     })
     const rentDates = occurrences
@@ -55,7 +55,7 @@ describe('buildCalendarOccurrences horizon', () => {
 
   it('generates weekly recurring occurrences on every selected weekday', () => {
     const groceries: RecurringTransaction = {
-      id: 2,
+      id: '2',
       title: 'Groceries',
       amount: 80,
       frequency: 'weekly',

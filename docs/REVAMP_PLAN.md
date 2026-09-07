@@ -15,12 +15,13 @@ Finance-Tracker is moving from a manual finance calendar into a personal financi
 9. Persistence trust (issue 003, completed 2026-09-05): a failed cloud load no longer lets autosave overwrite the cloud payload with defaults, load failures show a retryable error panel, hydration shows a skeleton, and a navbar indicator reports save status with retry for signed-in sessions.
 10. Tax model correctness (issue 004, completed 2026-09-05): per-filing-status 2026 federal brackets and standard deductions, the 2026 Social Security wage base, the additional Medicare tax, a FICA-versus-income-tax deduction split for benefits and retirement, a visible tax year in the UI, and test coverage for the tax and paycheck math.
 11. Onboarding and settings (issue 005, completed 2026-09-05): a persisted Settings modal for the state tax rate and projection horizon assumptions threaded through projections, feasibility, scenarios, and labels, plus a dismissible first-run setup guide on the dashboard.
+12. Feedback and normalized persistence (issue 006, completed 2026-09-07): an in-app feedback form with an admin inbox and status workflow backed by `profiles.role`, and the move from the single JSON blob to one Supabase table per kind of data with row level security, uuid ids, a diff-based autosave, a migration runner, and a re-runnable legacy importer.
 
 ## Architecture Direction
 
 - Keep Supabase Auth.
-- Keep the current `dashboard_states.payload` JSON during the transition.
-- Add a compatibility layer that normalizes the legacy payload.
+- Persist to one table per kind of data (done in milestone 12); `dashboard_states.payload` remains only as a read-only backup until it is dropped.
+- Keep the compatibility layer that normalizes legacy payloads for local mode.
 - Move domain types into `src/types`.
 - Move pure financial logic into `src/calculations`.
 - Move shared formatting and date helpers into `src/utils`.
@@ -44,24 +45,14 @@ Finance-Tracker is moving from a manual finance calendar into a personal financi
 
 ## Data Migration Strategy
 
-Start with the existing JSON payload, then introduce normalized Supabase tables incrementally:
+Completed in milestone 12. The normalized tables are:
 
-- profiles
-- financial_profiles
-- income_sources
-- paycheck_settings
-- tax_settings
-- benefit_elections
-- accounts
-- transactions
-- recurring_transactions
-- debts
-- savings_goals
-- investment_accounts
-- retirement_contributions
-- scenarios
-- scenario_inputs
-- projection_snapshots
-- user_assumptions
+- profiles (with `role`)
+- finance_settings (balance, balance source, balance target, planning assumptions, setup guide flag)
+- financial_profiles, income_sources, benefit_elections, retirement_contributions
+- scheduled_transactions, recurring_transactions, paycheck_rules
+- debt_plans, purchase_goals, emergency_fund_plans
+- investment_accounts, net_worth_items, scenario_plans
+- feedback
 
-The app should read legacy payloads until normalized tables fully replace the old dashboard state.
+`app_internal.import_legacy_dashboard_states()` (run with `npm run db:import-legacy`) copies anything still in the old blob into these tables and can be re-run safely; `supabase/maintenance/drop_legacy_tables.sql` removes the blob once the cutover is confirmed.

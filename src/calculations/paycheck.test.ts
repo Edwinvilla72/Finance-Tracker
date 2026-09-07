@@ -4,7 +4,7 @@ import { estimatePaycheck, getAnnualGrossIncome } from './paycheck'
 import type { IncomeSource } from '../types/finance'
 
 const salary: IncomeSource = {
-  id: 1,
+  id: '1',
   name: 'Job',
   type: 'salary',
   amount: 62400,
@@ -19,7 +19,7 @@ describe('getAnnualGrossIncome', () => {
   it('annualizes hourly income from rate and weekly hours', () => {
     expect(
       getAnnualGrossIncome({
-        id: 2,
+        id: '2',
         name: 'Hourly job',
         type: 'hourly',
         amount: 25,
@@ -32,7 +32,7 @@ describe('getAnnualGrossIncome', () => {
   it('defaults hourly income to 40 hours per week', () => {
     expect(
       getAnnualGrossIncome({
-        id: 3,
+        id: '3',
         name: 'Hourly job',
         type: 'hourly',
         amount: 30,
@@ -61,14 +61,14 @@ describe('estimatePaycheck', () => {
       filingStatus: 'single',
       benefitElections: [
         {
-          id: 1,
+          id: '1',
           name: 'Health',
           type: 'health',
           amountPerPaycheck: 100,
           taxTreatment: 'pre_tax',
         },
         {
-          id: 2,
+          id: '2',
           name: 'Life',
           type: 'life',
           amountPerPaycheck: 20,
@@ -77,7 +77,7 @@ describe('estimatePaycheck', () => {
       ],
       retirementContributions: [
         {
-          id: 3,
+          id: '3',
           accountType: 'traditional_401k',
           contributionMode: 'percent',
           contributionValue: 5,
@@ -121,7 +121,7 @@ describe('estimatePaycheck', () => {
       state: 'FL',
       retirementContributions: [
         {
-          id: 1,
+          id: '1',
           accountType: 'traditional_401k',
           contributionMode: 'amount',
           contributionValue: 200,
@@ -133,7 +133,7 @@ describe('estimatePaycheck', () => {
       state: 'FL',
       benefitElections: [
         {
-          id: 1,
+          id: '1',
           name: 'Health',
           type: 'health',
           amountPerPaycheck: 200,

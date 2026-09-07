@@ -7,11 +7,14 @@ type DashboardHeaderProps = {
   appMode?: 'local' | 'supabase'
   navOpen: boolean
   onModeChange?: (mode: 'local' | 'supabase') => void
+  onOpenAdminFeedback?: () => void
+  onOpenFeedback?: () => void
   onOpenSettings?: () => void
   onPageChange: (page: PageView) => void
   onRetrySave?: () => void
   onSignOut?: () => Promise<void> | void
   onToggleNav: () => void
+  openFeedbackCount?: number
   saveState?: 'idle' | 'saving' | 'saved' | 'error' | null
   userEmail?: string
 }
@@ -21,11 +24,14 @@ export function DashboardHeader({
   appMode,
   navOpen,
   onModeChange,
+  onOpenAdminFeedback,
+  onOpenFeedback,
   onOpenSettings,
   onPageChange,
   onRetrySave,
   onSignOut,
   onToggleNav,
+  openFeedbackCount = 0,
   saveState,
   userEmail,
 }: DashboardHeaderProps) {
@@ -39,6 +45,19 @@ export function DashboardHeader({
 
   const secondaryActions = (
     <>
+      {onOpenFeedback ? (
+        <button type="button" className="nav-quiet" onClick={onOpenFeedback}>
+          Feedback
+        </button>
+      ) : null}
+      {onOpenAdminFeedback ? (
+        <button type="button" className="nav-quiet" onClick={onOpenAdminFeedback}>
+          Admin inbox
+          {openFeedbackCount > 0 ? (
+            <span className="nav-badge">{openFeedbackCount}</span>
+          ) : null}
+        </button>
+      ) : null}
       {onOpenSettings ? (
         <button type="button" className="nav-quiet" onClick={onOpenSettings}>
           Settings

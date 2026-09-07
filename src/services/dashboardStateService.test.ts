@@ -95,8 +95,8 @@ describe('mergePersistedStates', () => {
   })
 
   it('merges list entries by id', () => {
-    const remoteGoal = { id: 1, title: 'Remote', cost: 100, targetDate: '2027-01-01' }
-    const localGoal = { id: 2, title: 'Local', cost: 200, targetDate: '2027-02-01' }
+    const remoteGoal = { id: '1', title: 'Remote', cost: 100, targetDate: '2027-01-01' }
+    const localGoal = { id: '2', title: 'Local', cost: 200, targetDate: '2027-02-01' }
     const merged = mergePersistedStates(
       { purchaseGoals: [remoteGoal] },
       { purchaseGoals: [localGoal] },

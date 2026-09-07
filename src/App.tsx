@@ -3,6 +3,8 @@ import type { Session } from '@supabase/supabase-js'
 import Dashboard from './pages/Dashboard'
 import AuthPage from './pages/AuthPage'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
+import { fetchProfile } from './services/profileService'
+import type { Profile } from './types/profile'
 import './App.css'
 
 // debug mode to use without reliance on Supabase (not necessary)
@@ -22,6 +24,7 @@ function getInitialAppMode(): AppMode {
 
 function App() {
   const [session, setSession] = useState<Session | null>(null)
+  const [profile, setProfile] = useState<Profile | null>(null)
   const [appMode, setAppMode] = useState<AppMode>(getInitialAppMode)
   const isLocalMode = appMode === 'local'
   const [loading, setLoading] = useState(!isLocalMode && isSupabaseConfigured)
@@ -61,6 +64,31 @@ function App() {
     }
   }, [isLocalMode])
 
+  // The profile carries the role that unlocks the admin feedback inbox.
+  const userId = session?.user.id
+
+  useEffect(() => {
+    if (!userId || isLocalMode) {
+      return
+    }
+
+    let active = true
+
+    fetchProfile(userId)
+      .then((nextProfile) => {
+        if (active) {
+          setProfile(nextProfile)
+        }
+      })
+      .catch((error: unknown) => {
+        console.error('Failed to load profile', error)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [isLocalMode, userId])
+
   async function handleSignOut() {
     await supabase?.auth.signOut()
   }
@@ -95,9 +123,11 @@ function App() {
 
   return (
     <Dashboard
+      key={session.user.id}
       userId={session.user.id}
       userEmail={session.user.email ?? ''}
       appMode={appMode}
+      isAdmin={profile?.id === session.user.id && profile.role === 'admin'}
       onModeChange={handleModeChange}
       onSignOut={handleSignOut}
     />

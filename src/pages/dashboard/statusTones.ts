@@ -2,8 +2,22 @@ import type {
   GoalFeasibilityStatus,
   GoalPortfolioStatus,
 } from '../../calculations/goals'
+import type { FeedbackStatus, FeedbackType } from '../../types/feedback'
 
 export type BadgeTone = 'positive' | 'warning' | 'negative' | 'neutral' | 'accent'
+
+export const feedbackStatusTones: Record<FeedbackStatus, BadgeTone> = {
+  open: 'accent',
+  in_progress: 'warning',
+  resolved: 'positive',
+  wont_fix: 'neutral',
+}
+
+export const feedbackTypeTones: Record<FeedbackType, BadgeTone> = {
+  feature: 'accent',
+  bug: 'negative',
+  other: 'neutral',
+}
 
 export type ProgressTone = 'accent' | 'positive' | 'warning' | 'negative'
 

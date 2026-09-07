@@ -18,7 +18,7 @@ export type GoalItemKind = 'purchase' | 'target' | 'debt' | 'emergency'
 export type GoalItem = {
   key: string
   kind: GoalItemKind
-  originId: number | null
+  originId: string | null
   title: string
   targetLabel: string
   amount: number

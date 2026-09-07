@@ -29,9 +29,9 @@ type CashFlowPageProps = {
   paycheckEstimate?: PaycheckEstimateSummary | null
   paycheckRules: PaycheckRule[]
   recurringTransactions: RecurringTransaction[]
-  removePaycheckRule: (id: number) => void
-  removeRecurring: (id: number) => void
-  removeScheduled: (id: number) => void
+  removePaycheckRule: (id: string) => void
+  removeRecurring: (id: string) => void
+  removeScheduled: (id: string) => void
   scheduledTransactions: ScheduledTransaction[]
   todayKey: string
   totalBenefitsPerPaycheck: number

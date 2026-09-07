@@ -8,7 +8,11 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "db:migrate": "node scripts/db/migrate.mjs",
+    "db:migrate:status": "node scripts/db/migrate.mjs --status",
+    "db:import-legacy": "node scripts/db/import-legacy.mjs",
+    "db:promote-admin": "node scripts/db/promote-admin.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.99.3",

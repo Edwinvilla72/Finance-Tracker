@@ -92,6 +92,18 @@ export function getDefaultPersistedState(): PersistedState {
   }
 }
 
+// Ids are uuid strings. Payloads saved by older builds used Date.now() numbers,
+// so anything read back from localStorage is coerced before it reaches the UI.
+function withStringIds<T extends { id: string }>(items: T[] | undefined, fallback: T[]): T[] {
+  if (!items) {
+    return fallback
+  }
+
+  return items.map((item) =>
+    typeof item.id === 'string' ? item : { ...item, id: String(item.id) },
+  )
+}
+
 export function normalizePersistedState(
   value?: Partial<PersistedState> | null,
 ): PersistedState {
@@ -100,25 +112,34 @@ export function normalizePersistedState(
   return {
     currentBalanceInput: value?.currentBalanceInput ?? defaults.currentBalanceInput,
     bankBalanceSource: value?.bankBalanceSource ?? defaults.bankBalanceSource,
-    scheduledTransactions: value?.scheduledTransactions ?? defaults.scheduledTransactions,
-    recurringTransactions: value?.recurringTransactions ?? defaults.recurringTransactions,
-    paycheckRules: value?.paycheckRules ?? defaults.paycheckRules,
-    debtPlans: value?.debtPlans ?? defaults.debtPlans,
+    scheduledTransactions: withStringIds(
+      value?.scheduledTransactions,
+      defaults.scheduledTransactions,
+    ),
+    recurringTransactions: withStringIds(
+      value?.recurringTransactions,
+      defaults.recurringTransactions,
+    ),
+    paycheckRules: withStringIds(value?.paycheckRules, defaults.paycheckRules),
+    debtPlans: withStringIds(value?.debtPlans, defaults.debtPlans),
     financePlan: value?.financePlan ?? defaults.financePlan,
-    purchaseGoals: value?.purchaseGoals ?? defaults.purchaseGoals,
+    purchaseGoals: withStringIds(value?.purchaseGoals, defaults.purchaseGoals),
     financialProfile: {
       state: value?.financialProfile?.state ?? defaults.financialProfile.state,
       filingStatus:
         value?.financialProfile?.filingStatus ?? defaults.financialProfile.filingStatus,
-      incomeSources:
-        value?.financialProfile?.incomeSources ??
+      incomeSources: withStringIds(
+        value?.financialProfile?.incomeSources,
         defaults.financialProfile.incomeSources,
-      benefitElections:
-        value?.financialProfile?.benefitElections ??
+      ),
+      benefitElections: withStringIds(
+        value?.financialProfile?.benefitElections,
         defaults.financialProfile.benefitElections,
-      retirementContributions:
-        value?.financialProfile?.retirementContributions ??
+      ),
+      retirementContributions: withStringIds(
+        value?.financialProfile?.retirementContributions,
         defaults.financialProfile.retirementContributions,
+      ),
     },
     emergencyFundPlan: {
       currentSavings:
@@ -131,16 +152,16 @@ export function normalizePersistedState(
         value?.emergencyFundPlan?.targetMonths ??
         defaults.emergencyFundPlan.targetMonths,
     },
-    investmentAccounts: value?.investmentAccounts ?? defaults.investmentAccounts,
-    netWorthItems: value?.netWorthItems ?? defaults.netWorthItems,
-    scenarioPlans: value?.scenarioPlans ?? defaults.scenarioPlans,
+    investmentAccounts: withStringIds(value?.investmentAccounts, defaults.investmentAccounts),
+    netWorthItems: withStringIds(value?.netWorthItems, defaults.netWorthItems),
+    scenarioPlans: withStringIds(value?.scenarioPlans, defaults.scenarioPlans),
     assumptions: normalizeAssumptions(value?.assumptions),
     setupGuideDismissed: value?.setupGuideDismissed ?? defaults.setupGuideDismissed,
   }
 }
 
-function mergeById<T extends { id: number }>(remote: T[], local: T[]) {
-  const merged = new Map<number, T>()
+function mergeById<T extends { id: string }>(remote: T[], local: T[]) {
+  const merged = new Map<string, T>()
 
   for (const item of remote) {
     merged.set(item.id, item)

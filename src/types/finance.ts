@@ -3,7 +3,7 @@ export type TransactionType = 'income' | 'expense' | 'transfer' | 'debt'
 export type Cadence = 'weekly' | 'biweekly' | 'monthly'
 
 export type ScheduledTransaction = {
-  id: number
+  id: string
   title: string
   amount: number
   date: string
@@ -12,7 +12,7 @@ export type ScheduledTransaction = {
 }
 
 export type RecurringTransaction = {
-  id: number
+  id: string
   title: string
   amount: number
   frequency: 'monthly' | 'weekly'
@@ -25,7 +25,7 @@ export type RecurringTransaction = {
 }
 
 export type PaycheckRule = {
-  id: number
+  id: string
   title: string
   amount: number
   frequency: 'monthly' | 'weekly' | 'biweekly'
@@ -35,7 +35,7 @@ export type PaycheckRule = {
 }
 
 export type DebtPlan = {
-  id: number
+  id: string
   title: string
   balance: number
   minimumDue: number
@@ -54,7 +54,7 @@ export type FinancePlan = {
 }
 
 export type PurchaseGoal = {
-  id: number
+  id: string
   title: string
   cost: number
   targetDate: string
@@ -63,7 +63,7 @@ export type PurchaseGoal = {
 
 export type CalendarOccurrence = {
   id: string
-  originId: number
+  originId: string
   originType: 'single' | 'recurring' | 'paycheck'
   title: string
   amount: number
@@ -98,7 +98,7 @@ export type PersistedState = {
 export type FilingStatus = 'single' | 'married_joint' | 'married_separate' | 'head_of_household'
 
 export type IncomeSource = {
-  id: number
+  id: string
   name: string
   type: 'salary' | 'hourly' | 'contract' | 'other'
   amount: number
@@ -107,7 +107,7 @@ export type IncomeSource = {
 }
 
 export type BenefitElection = {
-  id: number
+  id: string
   name: string
   type:
     | 'health'
@@ -126,7 +126,7 @@ export type BenefitElection = {
 }
 
 export type RetirementContribution = {
-  id: number
+  id: string
   accountType: 'traditional_401k' | 'roth_401k' | 'traditional_ira' | 'roth_ira'
   contributionMode: 'percent' | 'amount'
   contributionValue: number
@@ -149,7 +149,7 @@ export type EmergencyFundPlan = {
 }
 
 export type InvestmentAccount = {
-  id: number
+  id: string
   title: string
   accountType: 'brokerage' | 'traditional_401k' | 'roth_401k' | 'ira' | 'roth_ira' | 'hsa' | 'other'
   balance: number
@@ -158,7 +158,7 @@ export type InvestmentAccount = {
 }
 
 export type NetWorthItem = {
-  id: number
+  id: string
   title: string
   balance: number
   kind: 'asset' | 'liability'
@@ -166,7 +166,7 @@ export type NetWorthItem = {
 }
 
 export type ScenarioPlan = {
-  id: number
+  id: string
   title: string
   incomeChangePercent: number
   rentChange: number

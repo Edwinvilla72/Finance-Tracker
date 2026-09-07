@@ -16,6 +16,8 @@ export type ModalView =
   | 'plan'
   | 'purchaseGoals'
   | 'settings'
+  | 'feedback'
+  | 'adminFeedback'
   | null
 
 export type PageView =

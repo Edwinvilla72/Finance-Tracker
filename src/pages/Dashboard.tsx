@@ -23,9 +23,11 @@ import {
   loadPlaidLinkScript,
   syncBankSnapshot,
 } from '../services/bankSyncService'
+import { AdminFeedbackModal } from './dashboard/AdminFeedbackModal'
 import { CalendarPanel } from './dashboard/CalendarPanel'
 import { DashboardHeader } from './dashboard/DashboardHeader'
 import { DashboardModalContent } from './dashboard/DashboardModalContent'
+import { FeedbackModal } from './dashboard/FeedbackModal'
 import { buildGoalItems, summarizeGoalItems, type GoalItemKind } from './dashboard/goalItems'
 import { CashFlowPage } from './dashboard/pages/CashFlowPage'
 import { GoalsPage } from './dashboard/pages/GoalsPage'
@@ -36,13 +38,19 @@ import { type ModalView, type PageView } from './dashboard/dashboardTypes'
 import {
   clampProjectionMonths,
   clearPersistedState,
-  DASHBOARD_STATE_TABLE,
   getDefaultPersistedState,
   loadPersistedState,
   mergePersistedStates,
   normalizePersistedState,
   savePersistedState,
 } from '../services/dashboardStateService'
+import { countOpenFeedback } from '../services/feedbackService'
+import {
+  applyFinanceSyncPlan,
+  diffFinanceState,
+  isEmptySyncPlan,
+  loadFinanceState,
+} from '../services/financeDataService'
 import type {
   BankBalanceSource,
   LinkedBankAccount,
@@ -74,11 +82,13 @@ import {
   startOfMonth,
 } from '../utils/dates'
 import { currency } from '../utils/currency'
+import { createId } from '../utils/ids'
 
 type DashboardProps = {
   userId?: string
   userEmail?: string
   appMode?: 'local' | 'supabase'
+  isAdmin?: boolean
   onModeChange?: (mode: 'local' | 'supabase') => void
   onSignOut?: () => Promise<void> | void
 }
@@ -94,7 +104,14 @@ type DamageSequence = {
   title: string
 }
 
-function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: DashboardProps) {
+function Dashboard({
+  userId,
+  userEmail,
+  appMode,
+  isAdmin = false,
+  onModeChange,
+  onSignOut,
+}: DashboardProps) {
   const today = useMemo(() => new Date(), [])
   const todayKey = formatDateKey(today)
   const todayWeekday = String(today.getDay())
@@ -111,6 +128,9 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
   )
   const [saveAttempt, setSaveAttempt] = useState(0)
   const saveSequenceRef = useRef(0)
+  // What the cloud tables currently hold, so autosave only writes the difference.
+  const lastSyncedStateRef = useRef<PersistedState | null>(null)
+  const [openFeedbackCount, setOpenFeedbackCount] = useState(0)
   const [currentMonth, setCurrentMonth] = useState(startOfMonth(today))
   const [selectedDateKey, setSelectedDateKey] = useState(todayKey)
   const [currentBalanceInput, setCurrentBalanceInput] = useState(
@@ -421,7 +441,7 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
   }, 0)
   const netWorthSummary = calculateNetWorth(
     [
-      { id: -1, name: 'Current cash', balance: currentAvailableBalance },
+      { id: 'current-cash', name: 'Current cash', balance: currentAvailableBalance },
       ...investmentAccounts.map((account) => ({
         id: account.id,
         name: account.title,
@@ -548,6 +568,8 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
   ]
   const showSetupGuide =
     !setupGuideDismissed && setupSteps.some((step) => !step.done)
+  // Feedback is stored per account, so it needs a signed-in Supabase session.
+  const canUseFeedback = Boolean(userId && supabase)
 
   useEffect(() => {
     if (!userId) {
@@ -582,37 +604,46 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
     }
 
     const supabaseClient = supabase
+    const currentUserId = userId
     let active = true
 
     async function hydrateFromCloud() {
       const localState = normalizePersistedState(loadPersistedState())
-      const { data, error } = await supabaseClient
-        .from(DASHBOARD_STATE_TABLE)
-        .select('payload')
-        .eq('user_id', userId)
-        .maybeSingle()
+      let remoteState: PersistedState
+
+      try {
+        remoteState = await loadFinanceState(supabaseClient, currentUserId)
+      } catch (error) {
+        if (!active) {
+          return
+        }
+
+        // Do not mark the app ready: autosave with default state would
+        // overwrite the user's real cloud data.
+        console.error('Failed to load dashboard state', error)
+        setLoadError(
+          error instanceof Error && error.message
+            ? error.message
+            : 'The request to Supabase failed.',
+        )
+        return
+      }
 
       if (!active) {
         return
       }
 
-      if (error && error.code !== 'PGRST116') {
-        // Do not mark the app ready: autosave with default state would
-        // overwrite the user's real cloud payload.
-        console.error('Failed to load dashboard state', error)
-        setLoadError(error.message || 'The request to Supabase failed.')
-        return
-      }
-
-      const remoteState = normalizePersistedState(
-        (data?.payload as Partial<PersistedState> | undefined) ?? null,
-      )
+      // A brand-new cloud account inherits whatever local mode collected; the
+      // autosave below writes the merged result to the tables because the
+      // synced snapshot is set to the (empty) remote state.
       const shouldBackfillLocal =
-        (!data?.payload || Object.keys(data.payload as object).length === 0) &&
+        JSON.stringify(remoteState) === JSON.stringify(getDefaultPersistedState()) &&
         JSON.stringify(localState) !== JSON.stringify(getDefaultPersistedState())
       const hydratedState = shouldBackfillLocal
         ? mergePersistedStates(remoteState, localState)
         : remoteState
+
+      lastSyncedStateRef.current = remoteState
 
       setCurrentBalanceInput(hydratedState.currentBalanceInput)
       setBankBalanceSource(hydratedState.bankBalanceSource)
@@ -630,22 +661,6 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
       setScenarioPlans(hydratedState.scenarioPlans)
       setAssumptions(hydratedState.assumptions)
       setSetupGuideDismissed(hydratedState.setupGuideDismissed)
-
-      if (shouldBackfillLocal) {
-        const { error: upsertError } = await supabaseClient
-          .from(DASHBOARD_STATE_TABLE)
-          .upsert(
-            {
-              user_id: userId,
-              payload: hydratedState,
-            },
-            { onConflict: 'user_id' },
-          )
-
-        if (upsertError) {
-          console.error('Failed to backfill dashboard state', upsertError)
-        }
-      }
 
       clearPersistedState()
 
@@ -729,30 +744,36 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
         return
       }
 
+      // Only rows that differ from the last synced snapshot are written.
+      const plan = diffFinanceState(userId, lastSyncedStateRef.current, payload)
+
+      if (isEmptySyncPlan(plan)) {
+        return
+      }
+
       // Overlapping saves can resolve out of order; only the latest one may
       // report status.
       const saveId = ++saveSequenceRef.current
 
       setSaveState('saving')
 
-      const { error } = await supabase.from(DASHBOARD_STATE_TABLE).upsert(
-        {
-          user_id: userId,
-          payload,
-        },
-        { onConflict: 'user_id' },
-      )
+      try {
+        await applyFinanceSyncPlan(supabase, userId, plan)
+      } catch (error) {
+        if (saveId !== saveSequenceRef.current) {
+          return
+        }
 
-      if (saveId !== saveSequenceRef.current) {
-        return
-      }
-
-      if (error) {
         console.error('Failed to save dashboard state', error)
         setSaveState('error')
         return
       }
 
+      if (saveId !== saveSequenceRef.current) {
+        return
+      }
+
+      lastSyncedStateRef.current = payload
       setSaveState('saved')
     }, 400)
 
@@ -800,6 +821,30 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
 
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [activeModal])
+
+  // Admins see how many feedback items are still open; refresh whenever a
+  // modal opens or closes so the badge stays current after triaging.
+  useEffect(() => {
+    if (!isAdmin || !canUseFeedback) {
+      return
+    }
+
+    let active = true
+
+    countOpenFeedback()
+      .then((count) => {
+        if (active) {
+          setOpenFeedbackCount(count)
+        }
+      })
+      .catch((error: unknown) => {
+        console.error('Failed to count open feedback', error)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [activeModal, canUseFeedback, isAdmin])
 
   function getPurchaseGoalProjection(goal: PurchaseGoal) {
     const projectedOnTarget = projectedBalance(goal.targetDate)
@@ -1009,7 +1054,7 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
     setSaveAttempt((current) => current + 1)
   }
 
-  function removeGoal(kind: GoalItemKind, originId: number) {
+  function removeGoal(kind: GoalItemKind, originId: string) {
     if (kind === 'purchase') {
       setPurchaseGoals((current) => current.filter((goal) => goal.id !== originId))
       return
@@ -1020,27 +1065,27 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
     }
   }
 
-  function removePaycheckRule(id: number) {
+  function removePaycheckRule(id: string) {
     setPaycheckRules((current) => current.filter((rule) => rule.id !== id))
   }
 
-  function removeRecurring(id: number) {
+  function removeRecurring(id: string) {
     setRecurringTransactions((current) =>
       current.filter((transaction) => transaction.id !== id),
     )
   }
 
-  function removeScheduled(id: number) {
+  function removeScheduled(id: string) {
     setScheduledTransactions((current) =>
       current.filter((transaction) => transaction.id !== id),
     )
   }
 
-  function removeScenario(id: number) {
+  function removeScenario(id: string) {
     setScenarioPlans((current) => current.filter((scenario) => scenario.id !== id))
   }
 
-  function activateScenario(id: number) {
+  function activateScenario(id: string) {
     setScenarioPlans((current) => {
       const target = current.find((scenario) => scenario.id === id)
 
@@ -1083,7 +1128,7 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
     setScheduledTransactions((current) => [
       ...current,
       {
-        id: Date.now(),
+        id: createId(),
         title: dayForm.title,
         amount,
         date: selectedDateKey,
@@ -1118,7 +1163,7 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
     setScheduledTransactions((current) => [
       ...current,
       {
-        id: Date.now(),
+        id: createId(),
         title: oneTimeForm.title,
         amount,
         date: oneTimeForm.date,
@@ -1158,7 +1203,7 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
     setRecurringTransactions((current) => [
       ...current,
       {
-        id: Date.now(),
+        id: createId(),
         title: recurringForm.title,
         amount: Number(recurringForm.amount),
         frequency: recurringForm.frequency,
@@ -1257,12 +1302,10 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
       return
     }
 
-    const now = Date.now()
-
     setRecurringTransactions((current) => [
       ...current,
-      ...entries.map((entry, index) => ({
-        id: now + index,
+      ...entries.map((entry) => ({
+        id: createId(),
         title: entry.title,
         amount: Number(entry.amount),
         frequency: 'monthly' as const,
@@ -1315,7 +1358,7 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
     setPaycheckRules((current) => [
       ...current,
       {
-        id: Date.now(),
+        id: createId(),
         title: paycheckForm.title,
         amount: Number(paycheckForm.amount),
         frequency: paycheckForm.frequency,
@@ -1359,7 +1402,7 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
       filingStatus: incomeModelForm.filingStatus,
       incomeSources: [
         {
-          id: current.incomeSources[0]?.id ?? Date.now(),
+          id: current.incomeSources[0]?.id ?? createId(),
           name: incomeModelForm.name,
           type: incomeModelForm.type,
           amount: Number(incomeModelForm.amount),
@@ -1385,7 +1428,7 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
       benefitElections: [
         ...current.benefitElections,
         {
-          id: Date.now(),
+          id: createId(),
           name: benefitForm.name,
           type: benefitForm.type,
           amountPerPaycheck: Number(benefitForm.amountPerPaycheck),
@@ -1413,7 +1456,7 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
       ...current,
       retirementContributions: [
         {
-          id: current.retirementContributions[0]?.id ?? Date.now(),
+          id: current.retirementContributions[0]?.id ?? createId(),
           accountType: retirementForm.accountType,
           contributionMode: retirementForm.contributionMode,
           contributionValue: Number(retirementForm.contributionValue),
@@ -1447,7 +1490,7 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
     setPaycheckRules((current) => [
       ...current,
       {
-        id: Date.now(),
+        id: createId(),
         title: `${primaryIncome.name} net pay`,
         amount: Math.max(
           0,
@@ -1476,7 +1519,7 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
     setDebtPlans((current) => [
       ...current,
       {
-        id: Date.now(),
+        id: createId(),
         title: debtForm.title,
         balance: Number(debtForm.balance),
         minimumDue: Number(debtForm.minimumDue),
@@ -1518,7 +1561,7 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
     setPurchaseGoals((current) => [
       ...current,
       {
-        id: Date.now(),
+        id: createId(),
         title: purchaseGoalForm.title,
         cost: Number(purchaseGoalForm.cost),
         targetDate: purchaseGoalForm.targetDate,
@@ -1554,7 +1597,7 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
     setInvestmentAccounts((current) => [
       ...current,
       {
-        id: Date.now(),
+        id: createId(),
         title: investmentForm.title,
         accountType: investmentForm.accountType,
         balance: Number(investmentForm.balance),
@@ -1582,7 +1625,7 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
     setNetWorthItems((current) => [
       ...current,
       {
-        id: Date.now(),
+        id: createId(),
         title: netWorthForm.title,
         balance: Number(netWorthForm.balance),
         kind: netWorthForm.kind,
@@ -1606,7 +1649,7 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
     }
 
     const scenario: ScenarioPlan = {
-      id: Date.now(),
+      id: createId(),
       title: scenarioForm.title,
       incomeChangePercent: Number(scenarioForm.incomeChangePercent || 0),
       rentChange: Number(scenarioForm.rentChange || 0),
@@ -1651,10 +1694,27 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
             setActivePage(page)
             setNavOpen(false)
           }}
+          onOpenAdminFeedback={
+            canUseFeedback && isAdmin
+              ? () => {
+                  setNavOpen(false)
+                  openModal('adminFeedback')
+                }
+              : undefined
+          }
+          onOpenFeedback={
+            canUseFeedback
+              ? () => {
+                  setNavOpen(false)
+                  openModal('feedback')
+                }
+              : undefined
+          }
           onOpenSettings={() => {
             setNavOpen(false)
             openModal('settings')
           }}
+          openFeedbackCount={openFeedbackCount}
           onRetrySave={retrySave}
           onSignOut={onSignOut}
           onToggleNav={() => setNavOpen((current) => !current)}
@@ -1784,6 +1844,30 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
         ) : null}
       </main>
 
+      {canUseFeedback ? (
+        <button
+          type="button"
+          className="feedback-fab"
+          onClick={() => openModal('feedback')}
+          aria-label="Send feedback"
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5z" />
+          </svg>
+          Feedback
+        </button>
+      ) : null}
+
       <AnimatePresence>
         {damageSequence ? (
           <motion.div
@@ -1830,7 +1914,7 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
             />
             <div className="modal-shell">
               <motion.section
-                className="modal-card"
+                className={`modal-card${activeModal === 'adminFeedback' ? ' modal-card-wide' : ''}`}
                 role="dialog"
                 aria-modal="true"
                 aria-label="Planner modal"
@@ -1842,6 +1926,11 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
                   ease: [0.22, 1, 0.36, 1],
                 }}
               >
+                {activeModal === 'feedback' && userId ? (
+                  <FeedbackModal userId={userId} closeModal={closeModal} />
+                ) : activeModal === 'adminFeedback' ? (
+                  <AdminFeedbackModal closeModal={closeModal} />
+                ) : (
                 <DashboardModalContent
                   activeModal={activeModal}
                   activeScenario={activeScenario}
@@ -1950,6 +2039,7 @@ function Dashboard({ userId, userEmail, appMode, onModeChange, onSignOut }: Dash
                   totalInvestmentBalance={totalInvestmentBalance}
                   totalRetirementPerPaycheck={totalRetirementPerPaycheck}
                 />
+                )}
               </motion.section>
             </div>
           </>

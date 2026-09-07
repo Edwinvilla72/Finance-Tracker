@@ -22,7 +22,7 @@ type GoalsPageProps = {
   monthlySurplus: number
   openModal: (view: Exclude<ModalView, null>) => void
   projectionMonths: number
-  removeGoal: (kind: GoalItemKind, originId: number) => void
+  removeGoal: (kind: GoalItemKind, originId: string) => void
 }
 
 const editModalForKind: Record<GoalItemKind, Exclude<ModalView, null>> = {
@@ -239,7 +239,7 @@ export function GoalsPage({
                   <button
                     type="button"
                     className="ghost-button"
-                    onClick={() => removeGoal(goal.kind, goal.originId as number)}
+                    onClick={() => removeGoal(goal.kind, goal.originId as string)}
                   >
                     Remove
                   </button>

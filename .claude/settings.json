@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/edwinvillanueva/.cache/**)",
+      "Read(//Users/edwinvillanueva/Library/Caches/ms-playwright/**)",
+      "Bash(npm ls *)",
+      "Read(//Applications/**)",
+      "Bash(mkdir -p \"/private/tmp/claude-501/-Users-edwinvillanueva-Documents-Programming-Finance-Tracker/a4a3211c-0400-412e-afa2-5643feabcc64/scratchpad/e2e\")",
+      "Bash(npm init *)",
+      "Bash(npm i *)",
+      "Bash(node -e \"const v=require\\('playwright-core/package.json'\\).version; console.log\\('playwright-core', v\\)\")",
+      "Bash(node e2e-check.mjs)",
+      "Bash(xargs kill)"
+    ]
+  }
+}

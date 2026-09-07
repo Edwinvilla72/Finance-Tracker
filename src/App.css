@@ -1640,6 +1640,308 @@ button.stat-card:hover {
 }
 
 /* ---------------------------------------------------------------------------
+   Feedback
+--------------------------------------------------------------------------- */
+
+.feedback-fab {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 12;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+}
+
+.feedback-fab:hover {
+  background: var(--accent-strong);
+}
+
+.nav-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--negative);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.modal-card.modal-card-wide {
+  width: min(880px, calc(100% - 32px));
+  max-height: min(88vh, 920px);
+}
+
+.modal-card textarea {
+  width: 100%;
+  min-height: 96px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.modal-card textarea:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.field-help {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.form-error {
+  color: var(--negative);
+  font-size: 0.85rem;
+}
+
+.callout-positive {
+  margin-bottom: 0;
+  background: var(--positive-soft);
+  color: var(--positive);
+}
+
+.choice-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.choice-chip {
+  display: grid;
+  gap: 2px;
+  min-height: 56px;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.choice-chip strong {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.choice-chip span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 400;
+}
+
+.choice-chip.selected span {
+  color: var(--accent-strong);
+}
+
+.feedback-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.feedback-toolbar .nav-segmented {
+  flex-wrap: wrap;
+}
+
+.chip-count {
+  margin-left: 6px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.select-inline {
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.feedback-list {
+  display: grid;
+  gap: 12px;
+}
+
+/* Tone classes set the colour that cards and status buttons read, so a status
+   looks the same everywhere it appears. */
+.tone-accent {
+  --tone-color: var(--accent);
+  --tone-soft: var(--accent-soft);
+  --tone-text: var(--accent-strong);
+}
+
+.tone-positive {
+  --tone-color: var(--positive);
+  --tone-soft: var(--positive-soft);
+  --tone-text: var(--positive);
+}
+
+.tone-warning {
+  --tone-color: var(--warning);
+  --tone-soft: var(--warning-soft);
+  --tone-text: var(--warning);
+}
+
+.tone-negative {
+  --tone-color: var(--negative);
+  --tone-soft: var(--negative-soft);
+  --tone-text: var(--negative);
+}
+
+.tone-neutral {
+  --tone-color: var(--border-strong);
+  --tone-soft: var(--surface-inset);
+  --tone-text: var(--muted-strong);
+}
+
+.feedback-card {
+  display: grid;
+  gap: 10px;
+  padding: 16px 16px 16px 18px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--tone-color, var(--border-strong));
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.feedback-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.feedback-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.feedback-title {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.feedback-body {
+  color: var(--muted-strong);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.feedback-meta {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.feedback-label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.feedback-detail {
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+}
+
+.feedback-note {
+  background: var(--accent-soft);
+}
+
+.feedback-note .feedback-label {
+  color: var(--accent-strong);
+}
+
+.admin-controls {
+  display: grid;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.status-action {
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted-strong);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.status-action:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.status-action.selected {
+  border-color: transparent;
+  background: var(--tone-soft);
+  color: var(--tone-text);
+  font-weight: 600;
+}
+
+.status-action:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.admin-note-form {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-note-form textarea {
+  min-height: 64px;
+}
+
+.ghost-button:disabled,
+.stack-form button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+/* ---------------------------------------------------------------------------
    Responsive
 --------------------------------------------------------------------------- */
 
@@ -1822,6 +2124,25 @@ button.stat-card:hover {
   .modal-card {
     width: calc(100% - 20px);
     padding: 18px;
+  }
+
+  .feedback-fab {
+    right: 14px;
+    bottom: 14px;
+  }
+
+  .choice-row {
+    grid-template-columns: 1fr;
+  }
+
+  .feedback-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .feedback-card-head {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   body {
